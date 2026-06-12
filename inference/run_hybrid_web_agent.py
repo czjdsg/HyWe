@@ -11,6 +11,7 @@ from hybrid_agent import HybridBrowserAgent
 from hybrid_runtime import HybridPlaywrightComputer
 from hybrid_utils import (
     append_jsonl,
+    coord_scale_for_model,
     load_jsonl,
     safe_task_id,
     save_json,
@@ -57,13 +58,15 @@ def parse_args():
     parser.add_argument(
         "--coord-scale",
         type=int,
-        default=int(os.environ.get("COORD_SCALE", "0") or 0),
+        default=int(os.environ.get("COORD_SCALE", "-1") or -1),
         help=(
-            "If non-zero, treat model-emitted (x, y) as values on an N x N "
-            "logical grid and scale to the real viewport before dispatch "
-            "(real_x = x * viewport_width / N). Use 1000 for Qwen-VL / "
-            "kimi-k2.6 (their training convention). 0 (default) = no scaling; "
-            "model is expected to emit raw viewport pixels."
+            "Coordinate convention used by the operator model. If left at -1 "
+            "(default), it is auto-inferred from --model via "
+            "coord_scale_for_model: kimi* -> 1 (0..1 relative), qwen* -> 1000 "
+            "(0..1000 logical grid), claude/gpt-4v* -> 0 (raw pixels). Set "
+            "explicitly to override the auto-inference; the COORD_SCALE env "
+            "var also overrides the default. real_x = x_input * viewport / N "
+            "when N > 0, else x_input is passed through as a pixel."
         ),
     )
 
@@ -96,10 +99,10 @@ def parse_args():
     parser.add_argument("--router-api-key-env", default="ROUTER_API_KEY")
     parser.add_argument("--router-base-url", default="")
     parser.add_argument("--router-model", default="")
-    parser.add_argument("--router-timeout", type=float, default=180)
+    parser.add_argument("--router-timeout", type=float, default=900)
     parser.add_argument("--router-max-tokens", type=int, default=4096)
-    parser.add_argument("--api-timeout", type=float, default=180)
-    parser.add_argument("--summary-timeout", type=float, default=180)
+    parser.add_argument("--api-timeout", type=float, default=900)
+    parser.add_argument("--summary-timeout", type=float, default=900)
     parser.add_argument("--tokenizer-path", default="")
     parser.add_argument("--summary-tokenizer-path", default="")
     parser.add_argument(
@@ -112,13 +115,13 @@ def parse_args():
                         help="Per-turn LLM output cap. Bumped from 2048 to "
                              "16384 so the JSON <report> + <tool_call>/<answer> "
                              "always fit even on long browser observations.")
-    parser.add_argument("--temperature", type=float, default=0.2)
+    parser.add_argument("--temperature", type=float, default=0.0)
     parser.add_argument("--top-p", type=float, default=0.95)
     parser.add_argument("--top-k", type=int, default=20)
     parser.add_argument("--repetition-penalty", type=float, default=1.0)
     parser.add_argument("--seed", type=int, default=1234)
 
-    parser.add_argument("--max-iter", type=int, default=30)
+    parser.add_argument("--max-iter", type=int, default=50)
     parser.add_argument("--max-format-retries", type=int, default=3)
     parser.add_argument("--max-observation-chars", type=int, default=0,
                         help="0 = no truncation (full last_observation into agent prompt).")
@@ -128,25 +131,25 @@ def parse_args():
     parser.add_argument("--visit-max-webpage-chars", type=int, default=0)
     parser.add_argument("--visit-max-images", type=int, default=4)
     parser.add_argument("--visit-max-image-url-chars", type=int, default=2000000)
-    parser.add_argument("--visit-summary-max-tokens", type=int, default=700)
+    parser.add_argument("--visit-summary-max-tokens", type=int, default=4000)
     parser.add_argument(
         "--code-sandbox-base-url",
         default=os.environ.get("CODE_SANDBOX_BASE_URL", "http://127.0.0.1:8080"),
     )
-    parser.add_argument("--code-sandbox-request-timeout", type=float, default=90)
+    parser.add_argument("--code-sandbox-request-timeout", type=float, default=900)
     parser.add_argument("--code-sandbox-max-output-chars", type=int, default=0,
                         help="0 = no truncation of code_sandbox stdout in the saved record / agent context.")
     parser.add_argument("--code-sandbox-max-file-bytes", type=int, default=25_000_000)
 
     parser.add_argument("--headless", action="store_true")
-    parser.add_argument("--window-width", type=int, default=1080)
-    parser.add_argument("--window-height", type=int, default=1440)
+    parser.add_argument("--window-width", type=int, default=1280)
+    parser.add_argument("--window-height", type=int, default=720)
     parser.add_argument("--use-agent-images", dest="use_agent_images", action="store_true", default=True)
     parser.add_argument("--no-agent-images", dest="use_agent_images", action="store_false")
     parser.add_argument("--use-input-images", dest="use_input_images", action="store_true", default=True)
     parser.add_argument("--no-input-images", dest="use_input_images", action="store_false")
     parser.add_argument("--max-input-images", type=int, default=8)
-    parser.add_argument("--use-visit-images", dest="use_visit_images", action="store_true", default=True)
+    parser.add_argument("--use-visit-images", dest="use_visit_images", action="store_true", default=False)
     parser.add_argument("--no-visit-images", dest="use_visit_images", action="store_false")
     parser.add_argument("--use-css-som", dest="use_css_som", action="store_true", default=True)
     parser.add_argument("--no-css-som", dest="use_css_som", action="store_false")
@@ -159,6 +162,12 @@ def parse_args():
     args = parser.parse_args()
     if args.agent_mode not in {"hybrid", "hybrid_routed", "hybrid_guided_routed", "operation", "search"}:
         args.agent_mode = "hybrid"
+
+    # Resolve --coord-scale=-1 (the default) by auto-inferring from --model.
+    # The COORD_SCALE env var (read by argparse) wins over auto-inference;
+    # an explicit non-negative --coord-scale on the CLI wins over both.
+    if args.coord_scale is None or args.coord_scale < 0:
+        args.coord_scale = coord_scale_for_model(args.model)
 
     if not args.task and not args.input_path:
         parser.error("Either --task or --input-path must be provided.")

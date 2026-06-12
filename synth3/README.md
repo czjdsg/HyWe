@@ -138,6 +138,30 @@ agent never accidentally hits public endpoints during data generation.
 | `PIPE_T_C` | 1800 (30 min) | Stage C |
 | `PIPE_T_R` | 9000 (150 min) | Stage R |
 
+## Reference experiment topology
+
+The production v8 run used a 2-endpoint, 5-model split. The exact config
+sits in `scripts/v8_experiment.env`:
+
+| Stage / role           | Model                  | Endpoint |
+| ---------------------- | ---------------------- | -------- |
+| A operator (vision)    | `qwen3.7-plus`         | :8000 |
+| A fact extractor       | `kimi-k2.6` (vision)   | :8002 |
+| B search probe         | `qwen3.7-max`          | :8000 |
+| C task synth           | `aws.claude-opus-4-7`  | :8002 |
+| R operator (vision)    | `qwen3.7-plus`         | :8000 |
+| R router               | `kimi-k2.6`            | :8002 |
+| R search side          | `qwen3.7-max`          | :8000 |
+| Visit summary (A + R)  | `deepseek-v4-flash`    | :8002 |
+
+The launch scripts auto-source `scripts/v8_experiment.env` if it exists; set
+`EXPERIMENT_ENV=/path/to/file.env` to point at a different topology, or
+`EXPERIMENT_ENV=NONE` to fall back to the per-stage defaults documented
+under "Configuration — env vars" below.
+
+The bundled `v8_experiment.env` writes to `47.82.159.100:8000` and
+`47.82.159.100:8002`. Edit those URLs before running on a different host.
+
 ## Running
 
 End-to-end launch (override paths as needed):

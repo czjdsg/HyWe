@@ -185,3 +185,31 @@ def save_json(path: str | Path, obj: dict) -> None:
     obj = sanitize_surrogates(obj)
     with open(path, "w", encoding="utf-8") as handle:
         json.dump(obj, handle, ensure_ascii=False, indent=2)
+
+
+def coord_scale_for_model(model: str) -> int:
+    """Return the coord-scale convention used by the given vision model.
+
+    Different VLM families train on different coordinate spaces:
+      kimi*                            -> 1     (relative 0.0..1.0 floats)
+      qwen* (qwen-VL, qwen3.7-plus/max) -> 1000 (0..1000 integer grid)
+      claude / sonnet / opus / haiku   -> 0     (raw viewport pixels)
+      gpt-4v / gpt-4o                  -> 0     (raw viewport pixels)
+      unknown                          -> 1     (safest fallback — out-of-range
+                                                 pixel coords would loudly error
+                                                 instead of silently misclicking)
+
+    Used by `--coord-scale -1` (the default) to pick a scale based on
+    `--model` so users don't have to remember per-family conventions.
+    Explicit `--coord-scale` always wins.
+    """
+    m = (model or "").lower()
+    if "kimi" in m:
+        return 1
+    if "qwen" in m:
+        return 1000
+    if any(x in m for x in ("claude", "sonnet", "opus", "haiku")):
+        return 0
+    if any(x in m for x in ("gpt-4v", "gpt-4o", "gpt4v", "gpt4o")):
+        return 0
+    return 1

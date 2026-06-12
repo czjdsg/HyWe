@@ -25,6 +25,12 @@ mkdir -p "$OUT"
 cd "$SYNTH3_DIR"
 # Pulls in JINA / SERPER pool URLs + keys. Required.
 [[ -f "$REPO_ROOT/env.local.sh" ]] && source "$REPO_ROOT/env.local.sh"
+# Pull in the experiment topology (endpoints, models, timeouts). Override
+# with EXPERIMENT_ENV=/path/to/file or skip by setting EXPERIMENT_ENV=NONE.
+EXPERIMENT_ENV="${EXPERIMENT_ENV:-$SYNTH3_DIR/scripts/v8_experiment.env}"
+if [[ -n "$EXPERIMENT_ENV" && "$EXPERIMENT_ENV" != "NONE" && -f "$EXPERIMENT_ENV" ]]; then
+  source "$EXPERIMENT_ENV"
+fi
 
 # Pool endpoints (defaults match scripts/start_pools.sh).
 export SERPER_BASE_URL="${SERPER_BASE_URL:-http://127.0.0.1:8765}"

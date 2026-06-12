@@ -14,6 +14,16 @@ LOG="${LOG:-$OUT.log}"
 mkdir -p "$OUT"
 cd "$SYNTH3_DIR"
 [[ -f "$REPO_ROOT/env.local.sh" ]] && source "$REPO_ROOT/env.local.sh"
+# Pull in the experiment topology (endpoints, models, timeouts). Override
+# with EXPERIMENT_ENV=/path/to/file or skip by setting EXPERIMENT_ENV=NONE.
+EXPERIMENT_ENV="${EXPERIMENT_ENV:-$SYNTH3_DIR/scripts/v8_experiment.env}"
+if [[ -n "$EXPERIMENT_ENV" && "$EXPERIMENT_ENV" != "NONE" && -f "$EXPERIMENT_ENV" ]]; then
+  source "$EXPERIMENT_ENV"
+fi
+# In explore-only mode prefer a single-model topology unless the experiment env
+# already pinned both roles.
+export FACT_MODEL="${FACT_MODEL:-qwen3.7-plus}"
+export FACT_API_BASE="${FACT_API_BASE:-$EXPLORER_API_BASE}"
 
 export SERPER_BASE_URL="${SERPER_BASE_URL:-http://127.0.0.1:8765}"
 export JINA_READER_BASE_URL="${JINA_READER_BASE_URL:-http://127.0.0.1:8766}"
