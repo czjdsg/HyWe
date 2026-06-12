@@ -183,6 +183,10 @@ def run_search_agent(work: list[dict], out_dir: Path, conc: int) -> dict[str, di
                 "_probe_meta": {"domain": w["domain"], "key": w["key"]},
             }, ensure_ascii=False) + "\n")
 
+    # search-agent in `--agent-mode search` already excludes code_sandbox
+    # via AGENT_MODE_TOOL_NAMES["search"] = ["search","scholar","visit"], so
+    # we don't need to pass any tool-disable flag here. All non-endpoint /
+    # non-iteration knobs use the run_hybrid_web_agent defaults.
     cmd = [
         sys.executable, str(HYBRID_AGENT),
         "--input-path", str(input_path),
@@ -192,25 +196,15 @@ def run_search_agent(work: list[dict], out_dir: Path, conc: int) -> dict[str, di
         "--max-workers", str(conc),
         "--max-task-attempts", "1",
         "--max-iter", str(PROBE_MAX_ITER),
-        "--max-tokens", "12000",
         "--base-url", SAGENT_BASE,
         "--model", SAGENT_MODEL,
         "--api-key", SAGENT_KEY,
-        "--api-timeout", "300",
         "--router-base-url", SAGENT_BASE,
         "--router-model", SAGENT_MODEL,
         "--router-api-key", SAGENT_KEY,
-        "--router-timeout", "300",
-        "--router-max-tokens", "4096",
         "--summary-base-url", SUMMARY_BASE,
         "--summary-model", SUMMARY_MODEL,
         "--summary-api-key", SAGENT_KEY,
-        "--summary-timeout", "300",
-        "--visit-summary-max-tokens", "4000",
-        "--no-visit-images",
-        "--visit-max-images", "0",
-        "--code-sandbox-base-url", os.environ.get(
-            "PROBE_SANDBOX_BASE_URL", "http://127.0.0.1:8080"),
     ]
     _probe_tok = os.environ.get("PROBE_TOKENIZER_PATH", "")
     if _probe_tok:

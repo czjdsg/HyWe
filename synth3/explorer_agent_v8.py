@@ -62,7 +62,7 @@ FACT_API_BASE = os.environ.get("FACT_API_BASE", API_BASE)
 FACT_API_KEY = os.environ.get("FACT_API_KEY", API_KEY)
 FACT_MODEL = os.environ.get("FACT_MODEL", "aws.claude-sonnet-4-6")
 FACT_MAX_HISTORY = int(os.environ.get("FACT_MAX_HISTORY", "8"))
-FACT_TRAJ_SHOTS = int(os.environ.get("FACT_TRAJ_SHOTS", "3"))  # how many prior screenshots to pass
+FACT_TRAJ_SHOTS = int(os.environ.get("FACT_TRAJ_SHOTS", "2"))  # how many prior screenshots to pass
 
 # CAPTCHA fingerprints in the rendered page text. If any of these phrases
 # appears in current_title / current_url / observed page text right before a
@@ -359,7 +359,7 @@ class ExplorerAgentV8(_V7):
             "model": FACT_MODEL,
             "messages": messages,
             "temperature": 0.2,
-            "max_tokens": 6000,
+            "max_tokens": 16000,
         }
         last = None
         for attempt in range(4):

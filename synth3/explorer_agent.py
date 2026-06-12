@@ -1446,7 +1446,7 @@ class ExplorerAgent:
             "model": model,
             "messages": messages,
             "temperature": 0.4,
-            "max_tokens": 16000,
+            "max_tokens": 8000,
         }
         last_err = None
         for attempt in range(retries):

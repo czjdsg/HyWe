@@ -100,35 +100,92 @@ export SERPER_BASE_URL=http://127.0.0.1:8765
 ## 5. Configure your model endpoint
 
 The agent and judge talk to any **OpenAI-compatible** chat-completions
-endpoint (vLLM, SGLang, llama.cpp, the official OpenAI API, …). At minimum:
+endpoint (vLLM, SGLang, llama.cpp, the official OpenAI API, …).
+
+The production preference is pre-baked in **`configs/inference.env`**:
 
 ```bash
-export API_KEY=sk-...                   # or empty for local vLLM
-export BASE_URL=http://127.0.0.1:8001/v1
-export MODEL=kimi-k2.5
+source configs/inference.env
 ```
 
-The inference framework also supports a **separate summary-model endpoint**
-for `visit` page summarization (image-capable model recommended):
+That sets:
+
+| Var | Value |
+| --- | --- |
+| `BASE_URL` | `http://47.82.159.100:8000/v1` |
+| `MODEL` | `qwen3.7-plus` (operator, vision) |
+| `SEARCH_MODEL` | `qwen3.7-max` (routed search side) |
+| `ROUTER_MODEL` | `kimi-k2.6` (router) |
+| `SUMMARY_BASE_URL` | same as `BASE_URL` (single endpoint per user preference) |
+| `SUMMARY_MODEL` | `deepseek-v4-flash` |
+| `CODE_SANDBOX_BASE_URL` | `http://127.0.0.1:8080` (the local sandbox) |
+| `SERPER_BASE_URL` | `http://127.0.0.1:8765` |
+| `JINA_READER_BASE_URL` | `http://127.0.0.1:8766` |
+| `TASK_PROXY_URL` | `http://127.0.0.1:8990` (the vendored clash HTTP proxy) |
+| `API_KEY` | `EMPTY` (vLLM placeholder; override for real auth) |
+
+Each variable is `${VAR:-default}` so you can override any single one before
+or after sourcing.
+
+The remaining defaults (`--max-iter`, `--temperature`, `--coord-scale`,
+timeouts, …) are baked into argparse — see `inference/DEFAULTS.md`.
+
+## 5b. Local code sandbox (replaces the Docker container)
+
+On hosts where Docker is unavailable (Autodl, locked-down VMs), the agent
+talks to **`tools/local_sandbox/server.py`** instead — a pure-Python HTTP
+server speaking the same `/run_code` JSON contract as the vemlp
+`code-sandbox` image.
 
 ```bash
-export SUMMARY_API_KEY=...
-export SUMMARY_BASE_URL=http://127.0.0.1:8002/v1
-export SUMMARY_MODEL=Qwen3.5-27B
-export SUMMARY_TOKENIZER_PATH=/path/to/local/qwen-checkpoint  # for token counting
+bash scripts/start_sandbox.sh        # starts on 127.0.0.1:8080
+curl http://127.0.0.1:8080/healthz   # {"status":"ok",...}
 ```
 
-These are picked up by `inference/run_hybrid_web_agent.py` via the CLI flags
-`--base-url`, `--model`, `--summary-base-url`, etc.
+Supported languages: `python`, `python3`, `bash`, `nodejs`, `cpp`, `go`,
+`typescript`. Missing toolchains report a clear error in the response. Each
+invocation runs in a fresh temp dir under `/tmp/hwa_sandbox/` with CPU
+(`SANDBOX_CPU_SECONDS=30`) and memory (`SANDBOX_MEM_BYTES=2GB`) rlimits.
+
+> This is a development sandbox, not a multi-tenant production sandbox:
+> there is no chroot, no cgroups, no network namespace. Use on trusted
+> hosts only.
+
+## 5c. Outbound proxy (vendored clash)
+
+`vendor/clash/` ships the static clash binary + USA-topology config so
+browser traffic in synth3 and inference doesn't get region-walled.
+
+```bash
+bash scripts/start_clash.sh          # 8990 http / 8991 socks / 9090 ctl
+```
+
+After it's up, `TASK_PROXY_URL=http://127.0.0.1:8990` (already in
+`configs/inference.env`) routes Playwright through it. Skip this step and
+the browser goes direct.
+
+## 5d. Start everything at once
+
+```bash
+bash scripts/start_all.sh            # pools + sandbox + clash
+bash scripts/stop_all.sh             # inverse
+```
 
 ## 6. Smoke test — operation benchmark
 
+The agent reads every row of `--input-path`; slice the dataset for a 3-task
+smoke:
+
 ```bash
+head -3 benchmarks/data/operation/web_webvoyager_643_final.jsonl \
+  > /tmp/wv3.jsonl
+
 python inference/run_hybrid_web_agent.py \
-  --input-path benchmarks/data/operation/web_webvoyager_643_final.jsonl \
-  --max-tasks 3 \
-  --base-url $BASE_URL --model $MODEL \
+  --input-path /tmp/wv3.jsonl \
+  --base-url $BASE_URL --model $MODEL --api-key $API_KEY \
   --summary-base-url $SUMMARY_BASE_URL --summary-model $SUMMARY_MODEL \
+  --code-sandbox-base-url $CODE_SANDBOX_BASE_URL \
+  --proxy-url $TASK_PROXY_URL \
   --headless \
   --output-dir runs/smoke_webvoyager
 ```
@@ -140,12 +197,15 @@ flat JSONL summary to `runs/smoke_webvoyager/summary.jsonl`.
 ## 7. Smoke test — search benchmark
 
 ```bash
+head -3 benchmarks/data/search/dr_browsecomp_1266.jsonl > /tmp/bc3.jsonl
+
 python inference/run_hybrid_web_agent.py \
-  --input-path benchmarks/data/search/dr_browsecomp_1266.jsonl \
-  --max-tasks 3 \
+  --input-path /tmp/bc3.jsonl \
   --agent-mode hybrid \
-  --base-url $BASE_URL --model $MODEL \
+  --base-url $BASE_URL --model $MODEL --api-key $API_KEY \
   --summary-base-url $SUMMARY_BASE_URL --summary-model $SUMMARY_MODEL \
+  --code-sandbox-base-url $CODE_SANDBOX_BASE_URL \
+  --proxy-url $TASK_PROXY_URL \
   --headless \
   --output-dir runs/smoke_browsecomp
 ```
@@ -156,7 +216,7 @@ python inference/run_hybrid_web_agent.py \
 python evaluation/scripts/evaluate_reference_answers.py \
   --run-dir runs/smoke_webvoyager \
   --output-dir runs/smoke_webvoyager/eval \
-  --base-url $BASE_URL --model $MODEL
+  --base-url $BASE_URL --model $MODEL --api-key $API_KEY
 ```
 
 The judge writes:
