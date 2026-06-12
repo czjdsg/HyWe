@@ -1,0 +1,564 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>synth7 pipeline</title>
+<style>
+:root{
+  --bg:#0e1116; --card:#171a21; --card2:#1d2128; --line:#2a2f3a;
+  --fg:#e6e6e6; --muted:#8a93a0;
+  --O:#ea580c; --O-soft:#3a2515; --S:#2563eb; --S-soft:#152540;
+  --SH:#06b6d4; --SW:#b75ab7; --SW-soft:#2a0d2a;
+  --A:#6366f1; --B:#0891b2; --C:#16a34a; --R:#eab308;
+  --skip:#6b7280; --easy:#16a34a; --medium:#eab308; --hard:#dc2626;
+  --ok:#9ff0bf; --warn:#ffd479; --err:#ff7b7b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--fg);
+  font:13px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif;}
+.app{display:grid;grid-template-columns:300px 1fr;height:100vh;}
+.col{overflow:auto;}
+.left{border-right:1px solid var(--line);}
+header{padding:10px 12px;border-bottom:1px solid var(--line);
+  position:sticky;top:0;background:var(--bg);z-index:5;}
+h1{margin:0;font-size:14px;color:#cde;}
+.agg{display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;font-size:10px;}
+.chip{padding:2px 7px;border-radius:10px;background:var(--card2);color:#bcd;}
+.chip b{color:#fff;}
+.bar{height:6px;border-radius:3px;display:flex;overflow:hidden;margin-top:8px;background:#222;}
+.bar i{display:block;height:100%;}
+.flt{padding:8px 12px;border-bottom:1px solid var(--line);display:flex;
+  flex-wrap:wrap;gap:5px;}
+.flt button{background:var(--card);border:1px solid var(--line);color:var(--muted);
+  border-radius:5px;padding:3px 8px;font-size:11px;cursor:pointer;}
+.flt button.on{color:#fff;border-color:#456;background:var(--card2);}
+input[type=search]{width:100%;padding:6px 8px;background:var(--card);
+  border:1px solid var(--line);color:var(--fg);border-radius:5px;font-size:12px;}
+.list .row{padding:7px 12px;border-bottom:1px solid var(--line);cursor:pointer;
+  display:flex;align-items:center;gap:6px;}
+.list .row:hover{background:var(--card);}
+.list .row.sel{background:#1b2330;}
+.dom{flex:1;color:#cde;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.stagebadge{font-size:9px;padding:1px 6px;border-radius:8px;font-weight:600;}
+.pipe{display:flex;gap:2px;}
+.pipe span{width:14px;height:6px;border-radius:2px;background:#2a2f3a;}
+.pipe span.A{background:var(--A);} .pipe span.B{background:var(--B);}
+.pipe span.C{background:var(--C);} .pipe span.R{background:var(--R);}
+.pipe span.skip{background:var(--skip);}
+.cnt{font-size:10px;color:var(--muted);min-width:54px;text-align:right;}
+.right{padding:0;}
+.det{padding:14px 18px;}
+.dh{font-size:16px;color:#dff;font-weight:600;}
+.dsub{color:var(--muted);font-size:11px;margin-top:2px;}
+.flow{display:flex;gap:6px;margin:12px 0;}
+.flow .st{flex:1;border:1px solid var(--line);border-radius:7px;padding:8px 10px;
+  background:var(--card);}
+.flow .st .lab{font-size:10px;font-weight:700;letter-spacing:.5px;}
+.flow .st .v{font-size:18px;font-weight:700;margin-top:2px;}
+.flow .st .sub{font-size:10px;color:var(--muted);}
+.flow .st.A{border-color:var(--A);} .flow .st.B{border-color:var(--B);}
+.flow .st.C{border-color:var(--C);} .flow .st.R{border-color:var(--R);}
+.flow .st.dim{opacity:.4;}
+.sec{margin-top:18px;}
+.sec h2{font-size:12px;color:#9bd;border-bottom:1px solid var(--line);
+  padding-bottom:5px;margin-bottom:8px;text-transform:uppercase;letter-spacing:.5px;}
+.pill{display:inline-block;padding:1px 6px;border-radius:3px;font-size:10px;}
+.pill.O{background:var(--O-soft);color:#ffb084;} .pill.S{background:var(--S-soft);color:#9fd1ff;}
+.pill.SH{background:#0e3a44;color:#7be1ee;} .pill.SR{background:#0d3a1f;color:#9ff0bf;}
+.pill.OE{background:#3a1a0d;color:#ffb37a;}
+.pill.easy{background:#0d3a1f;color:var(--easy);} .pill.medium{background:#3a2a0d;color:var(--medium);}
+.pill.hard{background:#3a0d0d;color:var(--hard);}
+.pill.good{background:#0d3a1f;color:#7ee0a0;} .pill.acceptable{background:#3a3a0d;color:#e0e07e;}
+.pill.poor{background:#3a0d0d;color:#e08080;}
+.pill.solved{background:#0d3a1f;color:#7ee0a0;} .pill.not_solved{background:#3a0d0d;color:#e08080;}
+.pill.partially_solved{background:#3a2a0d;color:#e0c07e;}
+.pill.sw{background:var(--SW-soft);color:#f0a6f0;border:1px dashed var(--SW);}
+.fact{padding:6px 8px;background:var(--card);border-radius:5px;margin-bottom:5px;
+  border-left:3px solid #333;}
+.fact.SR{border-left-color:#16a34a;} .fact.OE{border-left-color:var(--O);}
+.fact .k{font-family:monospace;font-size:11px;color:#9cf;}
+.fact .val{color:#cdd;font-size:12px;}
+.fact .probe{font-size:10px;color:var(--muted);margin-top:3px;}
+.task{padding:10px 12px;background:var(--card);border-radius:7px;margin-bottom:10px;
+  border:1px solid var(--line);}
+.task .q{font-size:13px;color:#dff;}
+.task .meta{margin:6px 0;display:flex;gap:5px;flex-wrap:wrap;align-items:center;}
+.plan{display:flex;gap:3px;flex-wrap:wrap;margin:5px 0;}
+.plan span{font-family:monospace;font-size:11px;padding:3px 7px;border-radius:4px;}
+.plan .O{background:var(--O-soft);color:#ffb084;} .plan .S{background:var(--S-soft);color:#9fd1ff;}
+.plan .sw{background:var(--SW-soft);color:#f0a6f0;border:1px dashed var(--SW);}
+.sk{color:#9bb;font-size:11px;margin-top:5px;}
+.roll{padding:10px 12px;background:var(--card);border-radius:7px;margin-bottom:10px;border:1px solid var(--line);}
+.steps{margin:6px 0;}
+.steprow{display:flex;gap:6px;align-items:baseline;font-size:11px;padding:2px 0;border-bottom:1px solid #20242c;}
+.steprow .sn{color:var(--muted);min-width:36px;}
+.fv{margin-top:6px;padding:6px 8px;border-radius:5px;font-size:11px;background:var(--card2);}
+.skipbox{padding:14px;border:1px dashed var(--skip);border-radius:8px;color:var(--muted);
+  background:#15171c;margin-top:10px;}
+.tcum{color:var(--muted);font-size:10px;}
+.qline{font-size:10px;color:#9cf;margin:2px 0 0 40px;}
+.qline code{background:#11151b;color:#bce;}
+.obsline{font-size:10px;color:#8a93a0;margin:1px 0 4px 40px;white-space:pre-wrap;
+  border-left:2px solid #2a2f3a;padding-left:6px;}
+.strans{margin:4px 0 4px 0;padding:4px 6px;background:#13161c;border-radius:4px;}
+.planlabel{font-size:10px;color:var(--muted);margin-top:6px;}
+.rshot{max-width:380px;border-radius:4px;border:1px solid var(--line);
+  display:block;cursor:zoom-in;}
+.rshot:hover{box-shadow:0 0 0 2px #345;}
+.stepd{margin:3px 0;border:1px solid var(--line);border-radius:5px;background:#13161c;}
+.stepd[open]{background:var(--card2);}
+.stepd summary{padding:5px 8px;cursor:pointer;display:flex;gap:6px;align-items:center;
+  list-style:none;font-size:11px;}
+.stepd summary::-webkit-details-marker{display:none;}
+.stepd summary::before{content:'▸';color:var(--muted);font-size:9px;display:inline-block;width:10px;}
+.stepd[open] summary::before{content:'▾';}
+.stepd.good{border-left:3px solid #16a34a;}
+.stepd.acceptable{border-left:3px solid #eab308;}
+.stepd.poor{border-left:3px solid #dc2626;}
+.stepd .actionhead{flex:1;color:#cdd;font-weight:normal;}
+.stepbody{padding:6px 10px 8px 22px;border-top:1px solid var(--line);font-size:11px;}
+.kv{display:flex;gap:8px;margin:5px 0;}
+.kv .k{min-width:140px;color:var(--muted);font-size:10px;text-transform:uppercase;
+  letter-spacing:.5px;flex-shrink:0;}
+.kv .v{color:#cdd;flex:1;word-break:break-word;}
+.kv .v a{color:#9cf;text-decoration:none;} .kv .v a:hover{text-decoration:underline;}
+.pre{background:#0a0d12;padding:5px 7px;border-radius:3px;font-size:10px;
+  color:#bcd;white-space:pre-wrap;word-break:break-word;margin:0;max-height:240px;overflow:auto;}
+.rmlist{margin:4px 0 0 18px;padding:0;color:var(--muted);font-size:10px;}
+.rmlist li{margin:2px 0;}
+/* A-trajectory layout: each step contains its facts + screenshot inline */
+.astep{margin:8px 0;padding:8px 10px;background:var(--card);border:1px solid var(--line);border-radius:6px;}
+.astephead{display:flex;gap:6px;align-items:baseline;font-size:11px;margin-bottom:4px;}
+/* v8 extractor turn — indented + green-leftborder so the O→E alternation
+   reads at a glance. shotless extractor rows still appear in line. */
+.astep.extractor{margin-left:32px;background:#162018;border-left:3px solid #4a8;}
+.astep.extractor .astephead{color:#9eb;}
+.astep.extractor .athought{color:#9c9;}
+.astep.operator{border-left:3px solid #6794d1;}
+.pill.E{background:#173;color:#aef;font-weight:bold;}
+.pill.O8{background:#137;color:#bcf;}
+.updblock{margin:6px 0;padding:6px 8px;background:#241e10;border-left:2px solid #c98;
+  border-radius:3px;font-size:11px;}
+.updblock b{color:#fb6;}
+.updblock .uval{color:#bcd;margin-top:2px;}
+.updblock .ureason{color:#888;font-style:italic;font-size:10.5px;}
+.pursueblock{margin:6px 0;padding:5px 8px;background:#231a25;border-left:2px solid #c9c;
+  border-radius:3px;font-size:11px;color:#dcd;}
+.pursueblock b{color:#c8c;}
+.extnote{margin:5px 0;padding:5px 8px;font-size:11px;color:#9b9;font-style:italic;}
+.opaction{margin:3px 0;padding:3px 8px;font-size:11px;font-family:monospace;color:#a9c;background:#191c22;border-radius:3px;}
+.opaction .oplab{color:#789;margin-right:4px;}
+.opaction code{color:#c9e;background:none;padding:0;}
+.opaction b{color:#dcd;}
+.athought{color:#aab;font-size:11px;font-style:italic;margin:4px 0 6px 0;padding-left:8px;border-left:2px solid var(--line);}
+.frow{margin:4px 0;background:var(--card2);border:1px solid var(--line);border-radius:4px;
+  border-left:3px solid var(--line);}
+.frow.SR{border-left-color:#16a34a;} .frow.OE{border-left-color:var(--O);}
+.frow.SH{border-left-color:var(--SH);}
+.frow summary{padding:5px 8px;cursor:pointer;display:flex;gap:6px;align-items:center;
+  list-style:none;font-size:11px;}
+.frow summary::-webkit-details-marker{display:none;}
+.frow summary::before{content:'▸';color:var(--muted);font-size:9px;width:10px;}
+.frow[open] summary::before{content:'▾';}
+.frow .fhead{padding:5px 8px;display:flex;gap:6px;align-items:center;font-size:11px;}
+.frow .fkey{font-family:monospace;color:#9cf;font-size:11px;flex-shrink:0;}
+.frow .fval{padding:0 10px 6px 22px;color:#dde;font-size:12px;word-break:break-word;}
+.frow .fbody{border-top:1px solid var(--line);padding:6px 10px;font-size:11px;}
+.bblock{display:flex;gap:8px;margin:4px 0;}
+.bblock .blab{min-width:80px;color:var(--muted);font-size:10px;text-transform:uppercase;
+  letter-spacing:.4px;flex-shrink:0;}
+.shot{max-width:320px;border-radius:4px;border:1px solid var(--line);margin-top:6px;cursor:zoom-in;}
+.rshot{cursor:zoom-in;}
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:9999;
+  display:none;align-items:center;justify-content:center;cursor:zoom-out;padding:20px;}
+#lightbox.on{display:flex;}
+#lightbox img{max-width:96vw;max-height:96vh;border-radius:6px;
+  box-shadow:0 0 40px rgba(0,0,0,.8);}
+#lightbox .lbclose{position:fixed;top:16px;right:20px;color:#cde;font-size:24px;
+  cursor:pointer;background:rgba(0,0,0,.6);border-radius:50%;width:36px;height:36px;
+  display:flex;align-items:center;justify-content:center;border:1px solid #333;}
+#lightbox .lbclose:hover{background:#345;color:#fff;}
+.empty{color:var(--muted);padding:30px;text-align:center;}
+code{background:#11151b;padding:1px 4px;border-radius:3px;font-size:11px;}
+.shot{max-width:260px;border-radius:5px;border:1px solid var(--line);margin-top:5px;display:block;}
+.live{font-size:10px;color:var(--ok);}
+.refbtn{background:#1e3a5f;color:#9cf;border:1px solid #2d5a8a;
+  border-radius:4px;padding:3px 10px;font-size:11px;cursor:pointer;
+  margin-left:8px;font-family:inherit;}
+.refbtn:hover{background:#2d5a8a;color:#fff;}
+.refbtn:active{background:#3d6a9a;}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="col left">
+    <header>
+      <h1>synth7 pipeline
+        <button id="refresh" class="refbtn" title="Reload manifest + open site">↻ Refresh</button>
+        <span class="live" id="live"></span>
+      </h1>
+      <div class="bar" id="bar"></div>
+      <div class="agg" id="agg"></div>
+    </header>
+    <div class="flt" id="flt"></div>
+    <div style="padding:8px 12px"><input type="search" id="q" placeholder="filter domain / category…"></div>
+    <div class="list" id="list"></div>
+  </div>
+  <div class="col right"><div class="det" id="det"><div class="empty">← pick a site</div></div></div>
+</div>
+<div id="lightbox"><span class="lbclose" title="close (Esc)">×</span><img id="lbimg" src=""></div>
+<script>
+const esc = s => (s==null?'':String(s)).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+let MANIFEST=null, SEL=null, FILTER='all', SEARCH='';
+const STAGE_ORDER = {A:1,B_pending:1.5,B:2,C_pending:2.5,C:3,R_pending:3.5,R:4};
+
+function stageInfo(st){
+  // returns {label, color, pipe:[A,B,C,R booleans/skip]}
+  const m = {
+    A:        {l:'A·skip',  c:'#6b7280', p:['skip',0,0,0]},
+    B_pending:{l:'B…',      c:'var(--B)', p:[1,'run',0,0]},
+    B:        {l:'B·skip',  c:'#6b7280', p:[1,'skip',0,0]},
+    C_pending:{l:'C…',      c:'var(--C)', p:[1,1,'run',0]},
+    C:        {l:'C·skip',  c:'#6b7280', p:[1,1,'skip',0]},
+    R_pending:{l:'R…',      c:'var(--R)', p:[1,1,1,'run']},
+    R:        {l:'done',    c:'var(--R)', p:[1,1,1,1]},
+  };
+  return m[st] || {l:st, c:'#888', p:[0,0,0,0]};
+}
+function pipeHtml(p){
+  const cls = {A:'A',B:'B',C:'C',R:'R'};
+  const order=['A','B','C','R'];
+  return '<div class="pipe">'+order.map((k,i)=>{
+    const v=p[i];
+    if(v===1) return `<span class="${k}"></span>`;
+    if(v==='skip') return `<span class="skip"></span>`;
+    if(v==='run') return `<span class="${k}" style="opacity:.45"></span>`;
+    return `<span></span>`;
+  }).join('')+'</div>';
+}
+
+async function load(){
+  const r = await fetch('manifest.json?_='+Date.now());
+  MANIFEST = await r.json();
+  renderHead(); renderFilters(); renderList();
+  document.getElementById('live').textContent =
+    '● last loaded '+new Date().toLocaleTimeString();
+}
+function renderHead(){
+  const a = MANIFEST.agg;
+  const bar = document.getElementById('bar');
+  const tot = MANIFEST.n_sites||1;
+  bar.innerHTML =
+    `<i style="background:var(--R);width:${a.R/tot*100}%"></i>`+
+    `<i style="background:var(--C);width:${(a.C-a.R)/tot*100}%"></i>`+
+    `<i style="background:var(--B);width:${(a.B-a.C)/tot*100}%"></i>`+
+    `<i style="background:var(--A);width:${(a.A-a.B)/tot*100}%"></i>`+
+    `<i style="background:var(--skip);width:${a.skip/tot*100}%"></i>`;
+  const sr = a.verdicts? Math.round(a.solved/a.verdicts*100):0;
+  document.getElementById('agg').innerHTML = [
+    `<span class="chip">sites <b>${MANIFEST.n_sites}</b></span>`,
+    `<span class="chip">A <b>${a.A}</b></span>`,
+    `<span class="chip">B <b>${a.B}</b></span>`,
+    `<span class="chip">C <b>${a.C}</b></span>`,
+    `<span class="chip">R <b>${a.R}</b></span>`,
+    `<span class="chip">skip <b>${a.skip}</b></span>`,
+    `<span class="chip">tasks <b>${a.tasks}</b></span>`,
+    `<span class="chip">rollouts <b>${a.rollouts}</b></span>`,
+    `<span class="chip">solve <b>${sr}%</b></span>`,
+  ].join('');
+}
+function renderFilters(){
+  const opts = [['all','all'],['R','done'],['R_pending','rollout…'],
+    ['C','task-set/skip'],['B_pending','probing'],['skipped','skipped']];
+  document.getElementById('flt').innerHTML = opts.map(([k,l])=>
+    `<button data-f="${k}" class="${FILTER===k?'on':''}">${l}</button>`).join('');
+  document.querySelectorAll('#flt button').forEach(b=>b.onclick=()=>{
+    FILTER=b.dataset.f; renderFilters(); renderList();
+  });
+}
+function passFilter(s){
+  if(SEARCH){
+    const t=(s.domain+' '+(s.category||'')).toLowerCase();
+    if(!t.includes(SEARCH)) return false;
+  }
+  if(FILTER==='all') return true;
+  if(FILTER==='skipped') return (s.stage==='A'||s.stage==='B'||s.stage==='C') && s.reason;
+  if(FILTER==='C') return s.stage==='C'||s.c_kind==='task_set';
+  return s.stage===FILTER;
+}
+function renderList(){
+  // newest activity first — ts is mtime of latest A/B/C/R artifact for the site
+  const sites = MANIFEST.sites.slice().sort((a,b)=>
+    (b.ts||0)-(a.ts||0) || a.domain.localeCompare(b.domain));
+  const el = document.getElementById('list');
+  el.innerHTML = sites.filter(passFilter).map(s=>{
+    const si = stageInfo(s.stage);
+    const cnt = s.n_planned
+      ? `${s.n_solved}/${s.n_rollouts}✓${s.in_flight?` +${s.in_flight}⏳`:''}`
+      : s.n_tasks? `${s.n_tasks}t`
+      : s.a_facts? `${s.a_facts}f` : '–';
+    return `<div class="row ${SEL===s.domain?'sel':''}" data-d="${s.domain}">
+      ${pipeHtml(si.p)}
+      <span class="dom">${esc(s.domain)}</span>
+      <span class="cnt">${cnt}</span>
+    </div>`;
+  }).join('') || '<div class="empty">no sites match</div>';
+  el.querySelectorAll('.row').forEach(r=>r.onclick=()=>select(r.dataset.d));
+}
+async function select(dom){
+  SEL=dom; renderList();
+  const r = await fetch('data/'+dom+'.json?_='+Date.now());
+  const d = await r.json();
+  renderDetail(d);
+}
+function renderRemaining(rem){
+  if(!rem||!rem.length) return '';
+  return '<div class="planlabel">remaining subgoals:</div><div class="plan">'+rem.map(p=>
+    p.type==='switch'? `<span class="sw">⇄ ${esc(p.to)}</span>`
+    : `<span class="${p.mode}">${esc(p.mode)}</span>`).join('')+'</div>'+
+    '<ol class="rmlist">'+rem.map(p=>
+      `<li><b>${esc(p.type)}</b> ${esc(p.mode||p.to||'')} — ${esc(p.subgoal||p.reason||'')}</li>`).join('')+'</ol>';
+}
+function renderStep(s){
+  const head =
+    `<summary><span class="sn">#${s.step}</span>`+
+    `<span class="pill ${s.mode==='S'?'S':'O'}">${esc(s.mode||'?')}</span>`+
+    (s.verdict?`<span class="pill ${s.verdict}">${esc(s.verdict)}</span>`:'')+
+    `<b>${esc(s.tool||'')}</b>${s.is_answer?' <span class="pill solved">ANSWER</span>':''}`+
+    `<span class="actionhead"> ${esc(s.action)}</span>`+
+    `</summary>`;
+  let body = '';
+  if(s.current_url||s.current_title){
+    body += `<div class="kv"><span class="k">page</span><span class="v">${esc(s.current_title)} <a href="${esc(s.current_url)}" target="_blank">${esc(s.current_url)}</a></span></div>`;
+  }
+  if(s.current_subgoal) body += `<div class="kv"><span class="k">subgoal</span><span class="v">${esc(s.current_subgoal)}</span></div>`;
+  if(s.task_analysis) body += `<div class="kv"><span class="k">task_analysis</span><span class="v">${esc(s.task_analysis)}</span></div>`;
+  if(s.cumulative_progress) body += `<div class="kv"><span class="k">cumulative_progress</span><span class="v">${esc(s.cumulative_progress)}</span></div>`;
+  if(s.this_turn) body += `<div class="kv"><span class="k">this_turn</span><span class="v">${esc(s.this_turn)}</span></div>`;
+  if(s.rationale) body += `<div class="kv"><span class="k">next_action_rationale</span><span class="v">${esc(s.rationale)}</span></div>`;
+  if(s.tool_args && s.tool_args!=='{}') body += `<div class="kv"><span class="k">tool args</span><pre class="pre">${esc(s.tool_args)}</pre></div>`;
+  if(s.query) body += `<div class="kv"><span class="k">query/url</span><span class="v"><code>${esc(s.query)}</code></span></div>`;
+  if(s.shot) body += `<div class="kv"><span class="k">screenshot</span><span class="v"><img class="rshot" loading="lazy" src="${esc(s.shot)}"></span></div>`;
+  if(s.obs_full) body += `<div class="kv"><span class="k">observation</span><pre class="pre">${esc(s.obs_full)}</pre></div>`;
+  if(s.verdict_reason) body += `<div class="kv"><span class="k">verdict reason</span><span class="v">${esc(s.verdict_reason)}</span></div>`;
+  if(s.remaining&&s.remaining.length) body += renderRemaining(s.remaining);
+  if(s.answer_text) body += `<div class="kv"><span class="k">answer</span><span class="v">${esc(s.answer_text)}</span></div>`;
+  return `<details class="stepd ${s.verdict||''}">${head}<div class="stepbody">${body}</div></details>`;
+}
+function renderFactRow(f){
+  const tag = f.tag || (f.probe==='auto_o'?'O_EXCLUSIVE':null);
+  const tagcls = tag==='S_REACHABLE'?'SR':(tag==='O_EXCLUSIVE'?'OE':(tag==='S_HARVESTED'?'SH':''));
+  const tagpill = tag?`<span class="pill ${tag==='S_REACHABLE'?'SR':(tag==='O_EXCLUSIVE'?'OE':'SH')}">${esc(tag)}</span>`:
+    (f.probe?`<span class="tcum">${esc(f.probe)}</span>`:'');
+  const hasB = f.question || (f.s_transcript&&f.s_transcript.length) || f.s_answer;
+  const factHead = `<summary><span class="fkey">${esc(f.key||'')}</span>${tagpill}</summary>`;
+  let body = `<div class="fval">${esc(f.value||'')}</div>`;
+  if(f.question) body += `<div class="bblock"><span class="blab">probe Q</span><span>${esc(f.question)}</span></div>`;
+  if(f.s_transcript&&f.s_transcript.length){
+    body += `<div class="bblock"><span class="blab">search</span><div style="flex:1">`+
+      f.s_transcript.map(st=>
+        `<div class="qline">#${st.step} <b>${esc(st.tool)}</b> ↳ <code>${esc(st.query||'')}</code></div>`+
+        (st.obs?`<div class="obsline">${esc(st.obs)}</div>`:'')
+      ).join('')+`</div></div>`;
+  }
+  if(f.s_answer||f.s_found!==undefined){
+    body += `<div class="bblock"><span class="blab">S verdict</span><span>${esc(f.s_answer||'(no answer)')} <span class="tcum">[${f.s_found?'found':'gave up'}, ${f.s_steps||'?'} steps]</span></span></div>`;
+  }
+  if(f.harvested&&f.harvested.length){
+    body += `<div class="bblock"><span class="blab">harvested</span><div style="flex:1">`+
+      f.harvested.map(h=>`<div class="qline"><code>${esc(h.key||'')}</code> = ${esc(h.value||'')}</div>`).join('')+`</div></div>`;
+  }
+  if(!hasB) return `<div class="frow ${tagcls}"><div class="fhead"><span class="fkey">${esc(f.key||'')}</span>${tagpill}</div><div class="fval">${esc(f.value||'')}</div></div>`;
+  return `<details class="frow ${tagcls}">${factHead}<div class="fbody">${body}</div></details>`;
+}
+function planHtml(plan){
+  return '<div class="plan">'+plan.map(p=>
+    p.type==='switch'? `<span class="sw">⇄ ${esc(p.to)}</span>`
+    : `<span class="${p.mode}">${esc(p.mode)}</span>`).join('')+'</div>';
+}
+function renderDetail(d){
+  const a=d.a,b=d.b,c=d.c,rr=d.r;
+  const st=stageInfo(stageOf(d));
+  let h = `<div class="dh">${esc(d.domain)}</div>
+    <div class="dsub">${esc((d.site||{}).category||'?')} · ${esc((d.site||{}).entry_url||'')}</div>`;
+  // flow summary cards
+  const bc=b.counts||{};
+  h += `<div class="flow">
+    <div class="st A ${a.n_facts?'':'dim'}"><div class="lab" style="color:var(--A)">A EXPLORE</div>
+      <div class="v">${a.n_facts}</div><div class="sub">facts · ${a.n_steps} steps · ${a.elapsed_s?Math.round(a.elapsed_s)+'s':''}</div></div>
+    <div class="st B ${bc.total?'':'dim'}"><div class="lab" style="color:var(--B)">B PROBE</div>
+      <div class="v">${bc.s_reachable||0}/${bc.o_exclusive||0}</div><div class="sub">S/O · harv ${bc.harvested||0}</div></div>
+    <div class="st C ${c.tasks.length?'':'dim'}"><div class="lab" style="color:var(--C)">C SYNTH</div>
+      <div class="v">${c.tasks.length}</div><div class="sub">${esc(c.kind||'')}</div></div>
+    <div class="st R ${rr.rollouts.length?'':'dim'}"><div class="lab" style="color:var(--R)">R ROLLOUT</div>
+      <div class="v">${rr.rollouts.length}</div><div class="sub">${rr.rollouts.filter(x=>(x.final_verdict||{}).task_solved).length} solved</div></div>
+  </div>`;
+
+  // skip box
+  if((stageOf(d)==='A'||stageOf(d)==='B'||stageOf(d)==='C') && c.reject || a.n_facts===0){
+    const why = a.n_facts===0? 'Exploration produced no facts — likely SPA / anti-bot wall. Pipeline short-circuited before probe.'
+      : (c.reject||'');
+    h += `<div class="skipbox">⏭ SKIPPED at stage ${stageOf(d)}<br>${esc(why)}</div>`;
+  }
+
+  // C tasks
+  if(c.tasks.length){
+    h+=`<div class="sec"><h2>Generated tasks (${c.tasks.length})</h2>`;
+    for(const t of c.tasks){
+      h+=`<div class="task"><div class="q">${esc(t.question)}</div>
+        <div class="meta">
+          <span class="pill ${t.difficulty}">${esc(t.difficulty)}</span>
+          <span class="pill SH">${esc(t.shape)}</span>
+          <span class="tcum">start=${esc(t.start_mode)} · score ${t.score} · ${t.n_crossings}× switch</span>
+        </div>
+        ${planHtml(t.route_plan)}
+        ${t.answer_sketch?`<div class="sk"><b>answer:</b> ${esc(t.answer_sketch)}</div>`:''}
+      </div>`;
+    }
+    h+=`</div>`;
+  }
+
+  // R rollouts
+  if(rr.rollouts.length){
+    h+=`<div class="sec"><h2>Rollout (${rr.rollouts.length})</h2>`;
+    for(const ro of rr.rollouts){
+      const fv=ro.final_verdict||{};
+      h+=`<div class="roll">
+        <div class="q" style="font-size:12px">${esc(ro.question||ro.task_id)}</div>
+        <div class="meta">
+          <span class="pill ${ro.termination==='answer'?'good':(ro.termination==='format_error'?'poor':'acceptable')}">${esc(ro.termination)}</span>
+          ${ro.difficulty?`<span class="pill ${ro.difficulty}">${esc(ro.difficulty)}</span>`:''}
+          ${ro.shape?`<span class="pill SH">${esc(ro.shape)}</span>`:''}
+          <span class="tcum">start=${esc(ro.start_mode||'?')} · ${ro.n_steps} steps · ${ro.n_switch}× switch</span>
+          ${fv.verdict?`<span class="pill ${fv.verdict}">${esc(fv.verdict)}</span>`:''}
+        </div>
+        ${(ro.route_plan&&ro.route_plan.length)?`<div class="planlabel">planned route:</div>`+planHtml(ro.route_plan):''}
+        <div class="steps" style="margin-top:6px">`+
+        ro.steps.map(s=>renderStep(s)).join('')+
+        `</div>`+
+        (fv.reason?`<div class="fv"><b>verdict:</b> ${esc(fv.reason)}</div>`:'')+
+        (ro.prediction?`<div class="fv"><b>answer:</b> ${esc(ro.prediction)}</div>`:'')+
+        `</div>`;
+    }
+    h+=`</div>`;
+  }
+
+  // A trajectory — each explore step shows the facts it captured inline,
+  // each fact has its B-stage verdict (tag, probe Q+A, search transcript)
+  // folded in as a collapsible block.
+  if(a.steps.length){
+    // collect any facts that B knows about but no A step claimed (e.g.
+    // S_HARVESTED from B-side search, or B-only auto_o classifications) so
+    // we can still surface them at the bottom.
+    const claimed = new Set();
+    for(const s of a.steps) for(const f of (s.facts_learned||[])) if(typeof f==='object'&&f.key) claimed.add(f.key);
+    const orphans = (b.facts||[]).filter(f=>{
+      const norm = (f.key||'').toLowerCase().replace(/[^a-z0-9]/g,'_').slice(0,60);
+      if(claimed.has(f.key)||claimed.has(norm)) return false;
+      // also filter out keys whose normalized form matches any A-claimed
+      // key (since absorb_facts normalizes)
+      for(const c of claimed){
+        const cn = c.toLowerCase().replace(/[^a-z0-9]/g,'_').slice(0,60);
+        if(cn===norm) return false;
+      }
+      return true;
+    });
+
+    // Count operator-only entries for the section header (v8 a.steps has
+    // both operator and extractor rows; v7 only operator).
+    const nOp = a.steps.filter(s=>s.role==='operator'||!s.role).length;
+    const nEx = a.steps.filter(s=>s.role==='extractor').length;
+    const headSuffix = nEx ? ` · ${nOp} op + ${nEx} ext turns` : '';
+    h+=`<div class="sec"><h2>Explore trajectory (${a.steps.length} entries${headSuffix} · ${a.n_facts} facts in KB)</h2>`;
+    for(const s of a.steps){
+      const isE = s.role === 'extractor';
+      const fl = (s.facts_learned||[]).map(f=>
+        typeof f==='string'
+          ? renderFactRow({key:f, value:'', tag:null})
+          : renderFactRow(f)
+      ).join('');
+      const upd = (s.facts_updated||[]).map(u=>
+        `<div class="updblock"><b>~ ${esc(u.key||'?')}</b>`+
+        (u.reason?` <span class="ureason">${esc(u.reason)}</span>`:'')+
+        `<div class="uval">${esc(u.value||'')}</div></div>`
+      ).join('');
+      const pursue = (s.facts_to_pursue||[]).map(q=>
+        `<div class="pursueblock"><b>?</b> ${esc(q)}</div>`
+      ).join('');
+      if(isE){
+        // EXTRACTOR card — no obs/action, just facts + updates + open questions
+        const summary = (s.facts_learned||[]).length===0
+          && (s.facts_updated||[]).length===0
+          && (s.facts_to_pursue||[]).length===0;
+        h+=`<div class="astep extractor">
+          <div class="astephead"><span class="tcum">#${s.step}.E</span>
+            <span class="pill E">EXTRACTOR</span>
+            <span style="color:#9eb">+${(s.facts_learned||[]).length} fact · ~${(s.facts_updated||[]).length} upd · →${(s.facts_to_pursue||[]).length} q${summary?' · (housekeeping — no fact)':''}</span>
+          </div>
+          ${s.thought?`<div class="extnote">${esc(s.thought)}</div>`:''}
+          ${fl}
+          ${upd}
+          ${pursue}
+          ${s.shot?`<img class="shot" loading="lazy" src="${esc(s.shot)}">`:''}
+        </div>`;
+      } else {
+        // Hit info: the actual element the click/fill landed on. Helpful
+        // for spotting coord-misses (e.g. clicked nav instead of button).
+        let hitLine = '';
+        if(s.hit_tag){
+          const labelTxt = s.hit_text || s.hit_aria || '';
+          const stickyMark = s.hit_sticky ? ` <span style="color:#fb6">[sticky&lt;${esc(s.hit_sticky)}&gt;]</span>` : '';
+          hitLine = `<div class="opaction"><span class="oplab">hit:</span> &lt;<b>${esc(s.hit_tag)}</b>&gt; ${labelTxt?`"${esc(labelTxt)}"`:''}${stickyMark}${s.obs_status&&s.obs_status!=='success'?` <span style="color:#f88">[${esc(s.obs_status)}]</span>`:''}</div>`;
+        }
+        h+=`<div class="astep operator">
+          <div class="astephead"><span class="tcum">#${s.step}</span>
+            <span class="pill O8">OPERATOR</span>
+            <b>${esc(s.tool||'')}</b>
+            <span style="color:#cdd">${esc(s.action)}</span>
+          </div>
+          ${s.tool_args&&s.tool_args!=='{}'?`<div class="opaction"><span class="oplab">args:</span> <code>${esc(s.tool_args)}</code></div>`:''}
+          ${hitLine}
+          ${s.thought?`<div class="athought">${esc(s.thought)}</div>`:''}
+          ${fl}
+          ${s.shot?`<img class="shot" loading="lazy" src="${esc(s.shot)}">`:''}
+        </div>`;
+      }
+    }
+    if(orphans.length){
+      h+=`<div class="astep" style="border-color:var(--SH)">
+        <div class="astephead"><span class="tcum">harvested / unattributed</span>
+          <span style="color:var(--muted)">facts B added that no A step claimed</span>
+        </div>
+        ${orphans.map(renderFactRow).join('')}
+      </div>`;
+    }
+    h+=`</div>`;
+  }
+  document.getElementById('det').innerHTML = h;
+}
+function stageOf(d){
+  if(d.r.rollouts.length) return 'R';
+  if(d.c.kind==='task_set'&&d.c.tasks.length) return 'R_pending';
+  if(d.c.kind==='no_task'||d.c.kind==='rejected') return 'C';
+  if(d.b.counts&&d.b.counts.total) return 'C_pending';
+  if(d.a.n_facts===0) return 'A';
+  return 'B_pending';
+}
+document.getElementById('q').oninput = e=>{SEARCH=e.target.value.toLowerCase();renderList();};
+document.getElementById('refresh').onclick = ()=>{ load(); if(SEL) select(SEL); };
+// lightbox: click any .shot or .rshot in the detail pane to zoom
+const lb = document.getElementById('lightbox');
+const lbimg = document.getElementById('lbimg');
+document.getElementById('det').addEventListener('click', e=>{
+  const t = e.target;
+  if(t.tagName==='IMG' && (t.classList.contains('shot')||t.classList.contains('rshot'))){
+    lbimg.src = t.src; lb.classList.add('on');
+  }
+});
+lb.addEventListener('click', ()=>lb.classList.remove('on'));
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') lb.classList.remove('on'); });
+load();
+// auto-refresh disabled — use the ↻ Refresh button
+</script>
+</body>
+</html>

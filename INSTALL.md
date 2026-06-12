@@ -183,7 +183,47 @@ flow above. The classified evaluator is included because the codebase also
 supports `target_urls` / `reveal_script` / `defer_framework` /
 `operation_key_points` routes for downstream work.
 
-## 10. Stopping the pools
+## 10. (Optional) Data-generation pipeline (`synth3/`)
+
+`synth3/` produces (task, reference answer, rollout) training triples by
+running an A→B→C→R pipeline over a candidate-site pool. Full details and
+the env-var reference live in `synth3/README.md`.
+
+Minimum to run end-to-end on the new machine:
+
+1. Provide a candidate-site pool JSON at
+   `benchmarks/data/hybrid_pool/hybrid_pool_combined.json` (or override
+   `POOL=...`). Schema:
+   ```json
+   [
+     {"domain": "google.com_flights",
+      "entry_url": "https://www.google.com/travel/flights",
+      "category": "travel"}
+   ]
+   ```
+2. Make sure the local pools are up and `env.local.sh` exports both
+   `SERPER_KEY_ID` and `JINA_API_KEY` (step 4 above).
+3. Launch the full pipeline:
+   ```bash
+   POOL=/path/to/pool.json \
+   OUT=runs/synth3_v8 \
+   bash synth3/scripts/v8_full1170_launch.sh
+   tail -f runs/synth3_v8.log
+   ```
+4. Optional: incremental rollout watcher and periodic QA loop:
+   ```bash
+   WATCHER_BATCH_ROOT=runs/synth3_rollouts \
+   WATCHER_SYNTH_OUT_DIR=runs/synth3_v8 \
+   python3 synth3/rollout_watcher.py --period 900 --min-batch 8 --max-batch 64 &
+
+   QA_RUN_DIR=runs/synth3_v8 bash synth3/qa_loop.sh &
+   ```
+
+`synth3` is fully optional — only needed when you want to regenerate
+training data, not to run the inference framework or the evaluation
+framework.
+
+## 11. Stopping the pools
 
 ```bash
 bash scripts/stop_pools.sh

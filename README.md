@@ -4,13 +4,14 @@ End-to-end pipeline for **hybrid web tasks** — a single agent that mixes
 browser operation, web search, and webpage reading — together with the
 reference-answer evaluation framework used to score it.
 
-This repository bundles four things:
+This repository bundles five things:
 
 | Component | Path | Purpose |
 | --- | --- | --- |
 | Inference framework | `inference/` | The agent itself: Playwright runtime, IterResearch-style controller, search / scholar / visit / code-sandbox tools, multiple ablation modes. |
 | Evaluation framework | `evaluation/` | Reference-answer judges (Type 1) for both **operation** benchmarks (WebVoyager, Online-Mind2Web) and **search / deep-research** benchmarks (BrowseComp, FRAMES, GAIA, WebWalkerQA, HLE, …). |
 | Benchmark data | `benchmarks/data/` | Curated JSONL splits for the operation + search benchmarks above. |
+| Data-generation pipeline | `synth3/` | A→B→C→R pipeline that produces (task, reference answer, rollout) triples from a site pool. See `synth3/README.md`. |
 | Local API-key pools | `pools/jina_pool/`, `pools/serper_pool/` | Local key-rotation proxies for Jina Reader and Serper. Ship **empty** by design — add your own keys after cloning. |
 
 The agent itself is described in detail in `inference/README.original.md` and
@@ -87,6 +88,17 @@ HybridWebAgent/
 │   ├── operation/              # WebVoyager-643, Online-Mind2Web-256
 │   ├── search/                 # BrowseComp / FRAMES / GAIA / WebWalkerQA / HLE / DeepSearch / browsecomp_zh
 │   └── annotations/            # sidecar annotation JSONs (for routes beyond static_answer)
+├── synth3/                     # data-generation pipeline (explore → probe → synth → rollout)
+│   ├── pipeline_driver.py        # full A→B→C→R streaming driver
+│   ├── synth_driver.py           # explore-only
+│   ├── rollout_watcher.py        # incremental R-stage launcher
+│   ├── explorer_agent[_v8].py    # A-stage agents
+│   ├── fact_prober[_v2].py       # B-stage probers
+│   ├── task_synth.py             # C-stage synthesizer
+│   ├── qa_sampler.py / qa_loop.sh # periodic LLM QA review
+│   ├── build_pipe_viz.py / viz/  # HTML viewer (ships with a demo trajectory)
+│   ├── scripts/v8_*_launch.sh    # production launchers
+│   └── README.md                 # pipeline + env-var reference
 ├── pools/
 │   ├── jina_pool/              # Jina Reader key-rotation proxy (empty DB)
 │   └── serper_pool/            # Serper key-rotation proxy (empty DB)
