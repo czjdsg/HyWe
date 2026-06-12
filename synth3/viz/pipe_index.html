@@ -147,6 +147,16 @@ input[type=search]{width:100%;padding:6px 8px;background:var(--card);
 .pursueblock b{color:#c8c;}
 .extnote{margin:5px 0;padding:5px 8px;font-size:11px;color:#9b9;font-style:italic;}
 .opaction{margin:3px 0;padding:3px 8px;font-size:11px;font-family:monospace;color:#a9c;background:#191c22;border-radius:3px;}
+.shotwrap{position:relative;display:inline-block;margin-top:6px;line-height:0;}
+.shotwrap .shot{margin-top:0;}
+.clickdot{position:absolute;width:14px;height:14px;border-radius:50%;
+  background:rgba(255,80,80,0.65);border:2px solid #fff;
+  transform:translate(-50%,-50%);pointer-events:none;
+  box-shadow:0 0 8px rgba(255,80,80,0.8);}
+.clickdot.end{background:rgba(80,200,255,0.65);box-shadow:0 0 8px rgba(80,200,255,0.8);}
+.clicklbl{position:absolute;transform:translate(8px,6px);pointer-events:none;
+  background:rgba(0,0,0,0.7);color:#fff;font-size:10px;font-family:monospace;
+  padding:1px 4px;border-radius:3px;white-space:nowrap;}
 .opaction .oplab{color:#789;margin-right:4px;}
 .opaction code{color:#c9e;background:none;padding:0;}
 .opaction b{color:#dcd;}
@@ -371,6 +381,49 @@ function renderFactRow(f){
   if(!hasB) return `<div class="frow ${tagcls}"><div class="fhead"><span class="fkey">${esc(f.key||'')}</span>${tagpill}</div><div class="fval">${esc(f.value||'')}</div></div>`;
   return `<details class="frow ${tagcls}">${factHead}<div class="fbody">${body}</div></details>`;
 }
+// Overlay a click marker on the operator screenshot. Handles 0-1 relative
+// (e.g. kimi 0.336, 0.601) and 0-1000 logical (qwen 850, 200) inputs by
+// magnitude. Native image dimensions tell us the viewport size.
+function markClick(img){
+  const wrap = img.parentElement;
+  if(!wrap) return;
+  let xy;
+  try { xy = JSON.parse(wrap.dataset.xy || '{}'); }
+  catch(_) { return; }
+  if(typeof xy.x !== 'number' || typeof xy.y !== 'number') return;
+  const W = img.naturalWidth || 1280;
+  const H = img.naturalHeight || 720;
+  const toPx = (v, span) => v < 1.0 ? v * span : v * span / 1000;
+  const px = toPx(xy.x, W);
+  const py = toPx(xy.y, H);
+  // Relative-position the marker within the wrapper. The wrapper is set to
+  // position:relative + the img inside is the natural-sized backdrop.
+  const fxL = (100 * px / W).toFixed(2) + '%';
+  const fxT = (100 * py / H).toFixed(2) + '%';
+  const dot = document.createElement('div');
+  dot.className = 'clickdot';
+  dot.style.left = fxL;
+  dot.style.top = fxT;
+  wrap.appendChild(dot);
+  // drag has a second point
+  if(typeof xy.x2 === 'number' && typeof xy.y2 === 'number'){
+    const px2 = toPx(xy.x2, W);
+    const py2 = toPx(xy.y2, H);
+    const fxL2 = (100 * px2 / W).toFixed(2) + '%';
+    const fxT2 = (100 * py2 / H).toFixed(2) + '%';
+    const dot2 = document.createElement('div');
+    dot2.className = 'clickdot end';
+    dot2.style.left = fxL2;
+    dot2.style.top = fxT2;
+    wrap.appendChild(dot2);
+  }
+  const lbl = document.createElement('div');
+  lbl.className = 'clicklbl';
+  lbl.style.left = fxL;
+  lbl.style.top = fxT;
+  lbl.textContent = `(${xy.x}, ${xy.y})`;
+  wrap.appendChild(lbl);
+}
 function planHtml(plan){
   return '<div class="plan">'+plan.map(p=>
     p.type==='switch'? `<span class="sw">⇄ ${esc(p.to)}</span>`
@@ -510,6 +563,32 @@ function renderDetail(d){
           const stickyMark = s.hit_sticky ? ` <span style="color:#fb6">[sticky&lt;${esc(s.hit_sticky)}&gt;]</span>` : '';
           hitLine = `<div class="opaction"><span class="oplab">hit:</span> &lt;<b>${esc(s.hit_tag)}</b>&gt; ${labelTxt?`"${esc(labelTxt)}"`:''}${stickyMark}${s.obs_status&&s.obs_status!=='success'?` <span style="color:#f88">[${esc(s.obs_status)}]</span>`:''}</div>`;
         }
+        // Pull out x/y from tool_args so we can mark them on the screenshot.
+        let xy = null;
+        if(s.tool_args){
+          try{
+            const a = JSON.parse(s.tool_args);
+            if(typeof a.x === 'number' && typeof a.y === 'number') xy = {x:a.x, y:a.y};
+            else if(typeof a.from_x === 'number' && typeof a.from_y === 'number')
+              xy = {x:a.from_x, y:a.from_y, x2:a.to_x, y2:a.to_y};
+          }catch(_){}
+        }
+        let shotBlock = '';
+        if(s.shot){
+          if(xy){
+            // Hidden img + onload paints a marker at (x,y) interpreted as 0-1
+            // relative OR 0-1000 logical depending on magnitude. The actual
+            // px mapping is whatever the runtime used (window_width/height
+            // are 1280×720 by convention).
+            const xyJson = esc(JSON.stringify(xy));
+            shotBlock = `<div class="shotwrap" data-xy='${xyJson}'>
+                          <img class="shot" loading="lazy" src="${esc(s.shot)}"
+                            onload="markClick(this)">
+                        </div>`;
+          } else {
+            shotBlock = `<img class="shot" loading="lazy" src="${esc(s.shot)}">`;
+          }
+        }
         h+=`<div class="astep operator">
           <div class="astephead"><span class="tcum">#${s.step}</span>
             <span class="pill O8">OPERATOR</span>
@@ -520,7 +599,7 @@ function renderDetail(d){
           ${hitLine}
           ${s.thought?`<div class="athought">${esc(s.thought)}</div>`:''}
           ${fl}
-          ${s.shot?`<img class="shot" loading="lazy" src="${esc(s.shot)}">`:''}
+          ${shotBlock}
         </div>`;
       }
     }
