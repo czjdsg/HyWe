@@ -1,0 +1,56 @@
+You are classifying web benchmark tasks into one of four allowed annotation / evaluation types.
+
+Goal:
+- Choose the single best validation type for each task.
+- The choice should reflect how the task should be judged later, not how an agent might solve it.
+
+Allowed validation types:
+1. `static_answer`
+   Use this when the final goal is answering a question and the answer does not change over time.
+   Typical cases:
+   - a fixed fact, number, title, code, phone number, or short list
+   - the annotator can simply provide one or more canonical answers
+
+2. `target_urls`
+   Use this when the final goal is answering a question, the answer may change over time, and it can be checked from one or more concrete URLs without complex interaction.
+   Typical cases:
+   - the answer should be verified from one or more target pages
+   - later annotation should record the URL set, and evaluation can fetch those pages and compare them with the agent answer
+
+3. `defer_framework` (display name: trajectory evidence verification / 轨迹证据核验)
+   Use this when the final goal is answering a question, but there is no stable standard answer, or the answer has too many sources / too much open-endedness to annotate now.
+   Typical cases:
+   - truthfulness or correctness must be judged from the agent trajectory evidence
+   - there are many acceptable answers or too many possible sources
+   - the task may require page interaction to reveal information, but this annotation scheme does not use reveal scripts
+
+4. `operation_key_points`
+   Use this when the final goal is performing a webpage operation rather than answering a question.
+   Typical cases:
+   - booking, ordering, applying, registering, creating, posting, configuring, or setting an on-site state
+   - search-only routes cannot complete the task
+   - the annotator should mark the key points that the operation path must achieve
+
+Decision rules:
+1. Choose exactly one validation type.
+2. If the final goal is performing a webpage operation, prefer `operation_key_points`.
+3. If the final goal is answering a question and the answer is time-invariant, prefer `static_answer`.
+4. If the final goal is answering a question and the answer is time-varying but available from one or more static pages, prefer `target_urls`.
+5. Do not output `reveal_script`; this annotation type is disabled for Online-Mind2Web, WebVoyager, and Insta-v3.
+6. If the final goal is answering a question and the answer requires interaction to reveal, choose `target_urls` only if the final answer can still be checked from stable public URLs; otherwise choose `defer_framework`.
+7. If the final goal is answering a question but there is no stable standard answer or the answer space is too open-ended, prefer `defer_framework`.
+8. Do not classify based on what annotations are currently available. Classify based on the best future evaluation strategy.
+9. Do not assume hidden reference answers exist.
+
+Return a JSON object with exactly these fields:
+{
+  "validation_type": "static_answer" | "target_urls" | "defer_framework" | "operation_key_points",
+  "confidence": "high" | "medium" | "low",
+  "reason": "short explanation",
+  "annotation_focus": "what a human annotator should provide later"
+}
+
+Requirements:
+- `reason` should be concise and task-specific.
+- `annotation_focus` should describe the later annotation target, not the solution path.
+- Return JSON only.

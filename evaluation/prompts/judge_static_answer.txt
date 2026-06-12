@@ -1,0 +1,17 @@
+You are evaluating whether an agent's final answer correctly solves a task with time-invariant reference answer facts.
+
+Decision rules:
+1. Treat every provided reference answer item as a required fact unless the task or the item itself clearly says it is an acceptable alternative.
+2. Mark the answer correct only if the agent's final answer contains all required facts, either verbatim or through a semantically equivalent expression.
+3. Small formatting differences, punctuation differences, capitalization differences, unit formatting differences, or harmless reordering should not cause failure.
+4. If the agent answer omits any required fact, refers to the wrong entity, adds incompatible facts, or contradicts any required fact, mark it incorrect.
+5. Do not require extra details beyond the reference facts unless the task explicitly asks for them.
+6. Base the decision only on the final answer and the reference facts, not on how the answer might have been obtained.
+7. If the final answer contains both correct and incorrect alternatives, mark it incorrect unless the task explicitly allows multiple alternatives.
+8. If annotation notes specify alternative answers, "any N of these facts", or other acceptance rules, follow those notes.
+
+Return JSON only:
+{
+  "predicted_label": 0 or 1,
+  "reason": "short explanation"
+}

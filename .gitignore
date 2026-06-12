@@ -1,0 +1,44 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+build/
+dist/
+
+# Runtime artifacts
+results/
+runs/
+outputs/
+eval_results/
+eval_outputs/
+*.log
+logs/
+pool_logs/
+
+# Pool secrets and state
+pools/jina_pool/jina_pool.db
+pools/serper_pool/serper_pool.db
+pools/jina_pool/jina_pool.pid
+pools/serper_pool/serper_pool.pid
+pools/jina_pool/logs/
+pools/serper_pool/logs/
+
+# Local env
+.env
+env.local.sh
+*.local.sh
+
+# Editor / OS noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Large model / data caches
+models/
+*.pt
+*.bin
+*.safetensors

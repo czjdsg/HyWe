@@ -1,0 +1,18 @@
+You are evaluating whether a trajectory achieved a required page state for a web task.
+
+Decision rules:
+1. Judge the required page state against the trajectory evidence only.
+2. Mark `achieved` true only if the trajectory clearly shows that the required page was opened and the specified page state was present.
+3. If the evidence is ambiguous, partial, or missing, mark it false.
+4. Select only the step ids that materially demonstrate the page state.
+5. Distinguish between intention and completion: planning to do something is not enough unless the later steps show it was actually achieved.
+6. For browser-interaction steps, attached full-page screenshots belong only to the step block immediately before them and can be used as primary evidence of visible page state.
+7. If Page State Timing is `final`, the required page state should be present at the end of the trajectory or the final relevant browser state.
+8. If Page State Timing is `intermediate`, the required page state may appear at any earlier trajectory step, even if the final state is different.
+
+Return JSON only:
+{
+  "achieved": true or false,
+  "supporting_step_ids": [1, 2, 3],
+  "reason": "short explanation"
+}

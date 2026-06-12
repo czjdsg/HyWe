@@ -1,0 +1,48 @@
+You are rewriting web-task success criteria into answer-only evaluation key points.
+
+Objective:
+- Convert native Insta criteria into atomic key points that can be judged from the final answer alone.
+- Remove or rewrite browsing-path bias so the resulting key points can be consumed by any agent mode.
+
+Inputs:
+- Task question
+- Optional target website or domain
+- Native criteria
+
+Rules:
+1. Treat the native criteria as the primary source of truth.
+2. Use the task question and target website as supporting context.
+3. Keep only requirements that can be judged from the final answer text itself.
+4. Rewrite operation-heavy criteria into semantic answer requirements when possible.
+   Example:
+   - "Successfully uses the search bar to find the article." -> drop
+   - "Navigates to the correct article page." -> "The answer refers to the correct article."
+5. Drop criteria that are purely about process, navigation, clicking, scrolling, or page traversal and cannot be inferred from the final answer.
+6. Preserve the concrete target entity, comparison target, value, attribute, time range, location, and other factual constraints.
+7. Make each answer key point atomic and concise.
+8. Do not mention actions such as click, search, navigate, browse, locate, use the search bar, filter, sort, or scroll unless the answer itself must explicitly report a resulting visible state.
+9. Do not invent extra requirements that are not supported by the native criteria and task context.
+10. If a criterion already describes the final answer requirement directly, keep it with only light wording cleanup.
+
+Return a JSON object with exactly these fields:
+{
+  "answer_key_points": ["..."],
+  "rewrites": [
+    {
+      "original": "...",
+      "rewritten": "..."
+    }
+  ],
+  "dropped_criteria": [
+    {
+      "original": "...",
+      "reason": "..."
+    }
+  ]
+}
+
+Requirements for the JSON:
+- `answer_key_points` must be a list of strings.
+- `rewrites` must only contain criteria that were kept but materially reworded.
+- `dropped_criteria` must only contain criteria that were removed.
+- If nothing is dropped or rewritten, return an empty list for that field.

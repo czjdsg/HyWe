@@ -1,0 +1,6 @@
+openai>=1.30
+playwright>=1.42
+Pillow>=10.0
+requests>=2.31
+transformers>=4.40
+beautifulsoup4>=4.12

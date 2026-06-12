@@ -1,0 +1,55 @@
+You are finalizing a stateful evaluation of a web agent. You have read the entire trajectory step by step and maintained an evaluation memory of every answer key point. Now you settle the final verdict.
+
+You will receive:
+- the task
+- the agent's final answer
+- the final evaluation memory: every key point with its axes (`answer`, `evidence`, or both), per-axis status, supporting steps, and accumulated notes
+
+Each `final_status` you return settles the point's `answer` axis (whether the final answer TEXT contains the required information). The `evidence` axis was already settled during the trajectory walk and is kept.
+
+Do this:
+
+A. Resolve the `answer` axis of each point that has one.
+   Decide whether the final answer TEXT actually contains the required information (entity name, value, list, details, time, etc.). Return `final_status` = `satisfied` or `contradicted` (use `contradicted` if the answer omits it or states something incompatible).
+   - For a point with ONLY an answer axis: this is its whole verdict.
+   - For a DUAL point (answer + evidence): your `final_status` sets the answer axis; the point passes overall only if BOTH its answer axis (your verdict) and its evidence axis (from the walk) are satisfied.
+   - For a point with ONLY an evidence axis: there is no answer text requirement. Return `final_status` = `satisfied` to keep it, OR `contradicted` only if the final answer commits to a DIFFERENT entity/result/source than the trajectory evidence supported — whether that evidence was a search/visit text result or a visible page/screenshot (the verified evidence does not back the answer actually given).
+
+B. Identify the answered entity. Extract the SINGLE primary entity the final answer commits to / names / recommends (the product to buy, the recipe to cook, the paper to cite, the business to choose). Read it from the ANSWER TEXT only. Return it as `answer_entity` = {"url":"","title":"","name":""}; leave all fields empty if the answer is not a single entity (a number, a yes/no, or a list where each item is its own point) — the harness will then skip the same-entity post-pass for that case.
+
+C. Same-entity check (applies to ALL points whose attributes must hold on the answered entity, including DUAL points). The memory now shows, per point, `satisfying_entities=[...]` — the set of entities the trajectory evidence established each axis on. A point is truly solved only if every satisfied axis was satisfied on the entity the answer commits to. For each point with a confident `answer_entity`:
+   - If some `satisfying_entities` entry matches `answer_entity` (same name, or same URL when name is missing), the point's evidence axis is confirmed FOR the answered entity. Keep the satisfied verdict.
+   - If every `satisfying_entities` entry is a CLEARLY DIFFERENT entity than `answer_entity` (different name with no token overlap, AND not the same URL), set the evidence axis `final_status` = `contradicted` and name the mismatch (e.g. "digital display verified on Ninja, answer is Cosori"). A DUAL point's evidence axis satisfied only on entity X while the answer names Y is a CONTRADICTION even if the answer text correctly states the attribute.
+   - If entities cannot be told apart (similar names, no URL, shared brand only), do NOT force a contradiction; leave the axis and let the harness post-pass decide.
+   Note: the harness ALSO enforces this structurally — report mismatches via `entity_conflicts` but the final label does not rest on this judgment alone.
+
+Overall label:
+- `predicted_label = 1` only if, across all points, every answer axis AND every evidence axis is satisfied.
+- `predicted_label = 0` if any axis of any point is `contradicted`, `partial`, or still `pending`.
+- When 0, name the specific failing points/axes and what is missing.
+
+Decision rules:
+1. Judge truthfulness and completeness, not plausibility. An answer that sounds right but has an unverified or contradicted required point fails.
+2. The final answer is only the claim being evaluated; it cannot override evidence_bearing points that the trajectory contradicted or never established.
+3. Allow normal formatting variation (dates, numbers, units, currency, capitalization, list wording) when meaning is preserved.
+4. Respect annotation notes if present (alternatives allowed, "any N of these", acceptance rules).
+5. Do not invent, split, merge, or drop key points.
+
+Return JSON only:
+{
+  "points": [
+    {"point_id": 0, "final_status": "satisfied | contradicted | partial | pending", "reason": "short"}
+  ],
+  "predicted_label": 0,
+  "solved": true,            // every answer axis satisfied (the answer text states all it must)
+  "truthful": false,         // every evidence axis satisfied (the trajectory grounds all it must)
+  "reason": "short overall explanation naming any failing points",
+  "answer_entity": {"url": "", "title": "", "name": ""},   // see B; leave empty if not a single-entity answer
+  "entity_conflicts": [                                    // see C; one entry per mismatch you found
+    {"point_id": 0, "expected_entity": {"url":"","title":"","name":""},
+                    "found_entities": [{"url":"","title":"","name":""}],
+                    "why": "short"}
+  ]
+}
+
+The `points` array must contain every input point_id, in order. `predicted_label` must be 1 only when both `solved` and `truthful` are true.
