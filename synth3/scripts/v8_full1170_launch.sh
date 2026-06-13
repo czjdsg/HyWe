@@ -64,7 +64,7 @@ nohup python3 pipeline_driver.py \
   --agent v8 \
   --sem-a 30 \
   --sem-b 12 \
-  --sem-c 8 \
+  --sem-c 2 \
   --sem-r 15 \
   --r-workers 2 \
   > "$LOG" 2>&1 &

@@ -38,15 +38,22 @@ SYNTH_MODEL = os.environ.get("SYNTH_MODEL", "aws.claude-opus-4-6")
 API_KEY = os.environ.get("SYNTH_API_KEY", "EMPTY")
 
 
+SYNTH_MAX_RETRIES = int(os.environ.get("SYNTH_MAX_RETRIES", "12"))
+
+
 def call_llm(messages, *, max_tokens=4000, temperature=0.3,
              timeout=900) -> str:
-    """Retry FOREVER on transport / gateway errors (504s etc) — a site must
-    never be dropped because the upstream hiccuped. Backoff caps at 60s."""
+    """Retry transient transport / gateway errors with exponential backoff.
+    Caps at SYNTH_MAX_RETRIES attempts (default 12) so a single site cannot
+    wedge the pipeline when the upstream goes into a sustained rate-limit /
+    quota-exhausted state (e.g. HTTP 418 from the synth gateway). Backoff
+    caps at 60s, so worst-case wait per site ≈ 12 minutes before raising."""
     payload = json.dumps({"model": SYNTH_MODEL, "messages": messages,
                           "max_tokens": max_tokens,
                           "temperature": temperature}).encode()
     attempt = 0
-    while True:
+    last_exc = None
+    while attempt < SYNTH_MAX_RETRIES:
         req = urllib.request.Request(SYNTH_BASE.rstrip("/") + "/chat/completions",
                                      data=payload, method="POST")
         req.add_header("Authorization", f"Bearer {API_KEY}")
@@ -56,11 +63,16 @@ def call_llm(messages, *, max_tokens=4000, temperature=0.3,
                 d = json.loads(r.read().decode("utf-8", errors="replace"))
                 return d["choices"][0]["message"]["content"] or ""
         except Exception as exc:
+            last_exc = exc
             attempt += 1
             wait = min(2 ** min(attempt, 6) * 2, 60)
-            print(f"  [llm-retry #{attempt}] {type(exc).__name__}: "
-                  f"{str(exc)[:120]} — retrying in {wait}s", flush=True)
+            print(f"  [llm-retry #{attempt}/{SYNTH_MAX_RETRIES}] "
+                  f"{type(exc).__name__}: {str(exc)[:120]} — retrying in {wait}s",
+                  flush=True)
             time.sleep(wait)
+    raise RuntimeError(
+        f"call_llm exhausted {SYNTH_MAX_RETRIES} retries; last error: "
+        f"{type(last_exc).__name__}: {str(last_exc)[:200]}")
 
 
 def extract_json(text: str) -> dict | None:
