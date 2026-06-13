@@ -216,10 +216,11 @@ def parse_args():
         "SUMMARY_TOKENIZER_PATH",
         args.tokenizer_path,
     )
-    args.proxy_url = args.proxy_url or os.environ.get(
-        "TASK_PROXY_URL",
-        "http://127.0.0.1:8990",
-    )
+    # Use --proxy-url if explicitly set; else fall back to TASK_PROXY_URL env;
+    # else go direct (empty string). Pre-empty here removes the historical
+    # hard-coded "127.0.0.1:8990" default so machines without a local proxy
+    # don't try to route through a port that nothing is listening on.
+    args.proxy_url = args.proxy_url or os.environ.get("TASK_PROXY_URL", "")
 
     args.current_date = date.today().isoformat()
     return args

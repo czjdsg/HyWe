@@ -14,8 +14,7 @@ This repository bundles seven things:
 | Data-generation pipeline | `synth3/` | A→B→C→R pipeline that produces (task, reference answer, rollout) triples from a site pool. See `synth3/README.md`. |
 | Local API-key pools | `pools/jina_pool/`, `pools/serper_pool/` | Local key-rotation proxies for Jina Reader and Serper. Ship **empty** by design — add your own keys after cloning. |
 | Local code sandbox | `tools/local_sandbox/` | Pure-Python HTTP server that speaks the same `/run_code` JSON contract as the vemlp `code-sandbox` Docker image. Use this on hosts where Docker is unavailable (Autodl, locked-down VMs). Supports python/bash/nodejs/cpp/go/typescript. |
-| Vendored clash | `vendor/clash/` | Static linux/amd64 clash binary + USA-topology config + GeoIP DB. Used as the outbound HTTP/SOCKS proxy for the browser. Listens on 8990/8991/9090. |
-| Inference preference | `configs/inference.env` | Production-tuned env wiring: `BASE_URL`, `MODEL`, `SUMMARY_MODEL`, key-pool URLs, sandbox URL, proxy URL — `source` this file before launching the agent. |
+| Inference preference | `configs/inference.env` | Production-tuned env wiring: `BASE_URL`, `MODEL`, `SUMMARY_MODEL`, key-pool URLs, sandbox URL — `source` this file before launching the agent. |
 
 The agent itself is described in detail in `inference/README.original.md` and
 `inference/ARCHITECTURE.md` / `inference/WORKFLOW_OVERVIEW.md`. The evaluation
@@ -28,7 +27,7 @@ framework's design is documented in `evaluation/README.original.md` and
 git clone git@github.com:czjdsg/HybridWebAgent.git
 cd HybridWebAgent
 bash scripts/install.sh         # see INSTALL.md for what this does
-bash scripts/start_all.sh       # jina_pool + serper_pool + local_sandbox + clash
+bash scripts/start_all.sh       # jina_pool + serper_pool + local_sandbox
 python pools/jina_pool/manage_keys.py  add YOUR_JINA_KEY
 python pools/serper_pool/manage_keys.py add YOUR_SERPER_KEY
 source configs/inference.env    # production-tuned BASE_URL / MODEL / SUMMARY_*
@@ -42,7 +41,6 @@ python inference/run_hybrid_web_agent.py \
   --base-url $BASE_URL --model $MODEL --api-key $API_KEY \
   --summary-base-url $SUMMARY_BASE_URL --summary-model $SUMMARY_MODEL \
   --code-sandbox-base-url $CODE_SANDBOX_BASE_URL \
-  --proxy-url $TASK_PROXY_URL \
   --headless \
   --output-dir runs/smoke
 ```

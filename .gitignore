@@ -30,11 +30,6 @@ tools/local_sandbox/logs/
 tools/local_sandbox/sandbox.pid
 /tmp/hwa_sandbox/
 
-# Clash runtime state (binary + config.yaml + Country.mmdb ARE checked in)
-vendor/clash/clash.pid
-vendor/clash/logs/
-vendor/clash/cache.db
-
 # Local env
 .env
 env.local.sh

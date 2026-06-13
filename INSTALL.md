@@ -121,7 +121,7 @@ That sets:
 | `CODE_SANDBOX_BASE_URL` | `http://127.0.0.1:8080` (the local sandbox) |
 | `SERPER_BASE_URL` | `http://127.0.0.1:8765` |
 | `JINA_READER_BASE_URL` | `http://127.0.0.1:8766` |
-| `TASK_PROXY_URL` | `http://127.0.0.1:8990` (the vendored clash HTTP proxy) |
+| `TASK_PROXY_URL` | `""` (direct connection by default; set to e.g. `http://127.0.0.1:8990` if you deploy your own HTTP proxy) |
 | `API_KEY` | `EMPTY` (vLLM placeholder; override for real auth) |
 
 Each variable is `${VAR:-default}` so you can override any single one before
@@ -151,23 +151,26 @@ invocation runs in a fresh temp dir under `/tmp/hwa_sandbox/` with CPU
 > there is no chroot, no cgroups, no network namespace. Use on trusted
 > hosts only.
 
-## 5c. Outbound proxy (vendored clash)
+## 5c. Outbound proxy (optional, BYO)
 
-`vendor/clash/` ships the static clash binary + USA-topology config so
-browser traffic in synth3 and inference doesn't get region-walled.
+If the host can reach the model endpoint + Jina + Serper directly, skip
+this step — the browser will go direct.
+
+If you need a proxy for browser traffic (e.g. region-walled sites in
+synth3 / certain WebVoyager tasks), deploy your own HTTP proxy and point
+the agent at it:
 
 ```bash
-bash scripts/start_clash.sh          # 8990 http / 8991 socks / 9090 ctl
+export TASK_PROXY_URL=http://127.0.0.1:8990   # whatever your proxy listens on
 ```
 
-After it's up, `TASK_PROXY_URL=http://127.0.0.1:8990` (already in
-`configs/inference.env`) routes Playwright through it. Skip this step and
-the browser goes direct.
+`configs/inference.env` defaults this to empty, so a missing proxy is the
+explicit choice rather than a silent fall-through.
 
 ## 5d. Start everything at once
 
 ```bash
-bash scripts/start_all.sh            # pools + sandbox + clash
+bash scripts/start_all.sh            # pools + sandbox
 bash scripts/stop_all.sh             # inverse
 ```
 
@@ -185,7 +188,6 @@ python inference/run_hybrid_web_agent.py \
   --base-url $BASE_URL --model $MODEL --api-key $API_KEY \
   --summary-base-url $SUMMARY_BASE_URL --summary-model $SUMMARY_MODEL \
   --code-sandbox-base-url $CODE_SANDBOX_BASE_URL \
-  --proxy-url $TASK_PROXY_URL \
   --headless \
   --output-dir runs/smoke_webvoyager
 ```
@@ -205,7 +207,6 @@ python inference/run_hybrid_web_agent.py \
   --base-url $BASE_URL --model $MODEL --api-key $API_KEY \
   --summary-base-url $SUMMARY_BASE_URL --summary-model $SUMMARY_MODEL \
   --code-sandbox-base-url $CODE_SANDBOX_BASE_URL \
-  --proxy-url $TASK_PROXY_URL \
   --headless \
   --output-dir runs/smoke_browsecomp
 ```
