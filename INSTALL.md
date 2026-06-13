@@ -100,7 +100,51 @@ export SERPER_BASE_URL=http://127.0.0.1:8765
 ## 5. Configure your model endpoint
 
 The agent and judge talk to any **OpenAI-compatible** chat-completions
-endpoint (vLLM, SGLang, llama.cpp, the official OpenAI API, …).
+endpoint (vLLM, SGLang, llama.cpp, the official OpenAI API, …). If you
+already have an endpoint running, skip to "production preference" below;
+otherwise step **5a** stands up one locally.
+
+### 5a. (Optional) Self-host Qwen3.6-35B-A3B via vllm
+
+The repo ships a one-shot vllm setup for Qwen3.6-35B-A3B (the open-source
+MoE model the production stack uses for `qwen3.6-plus`). Skip this if you
+plan to point `BASE_URL` at a remote endpoint.
+
+```bash
+# 1. Install the serve-only extras (vllm + matching transformers/torch)
+pip install -r requirements-serve.txt
+
+# 2. Download weights (~72 GB) via the hf-mirror CDN.
+#    Override the destination with QWEN36_DIR=/big/disk bash scripts/download_qwen36.sh
+bash scripts/download_qwen36.sh
+
+# 3. Serve on http://0.0.0.0:8000/v1 with served-model-name=qwen3.6-plus.
+#    tensor-parallel auto-detected from CUDA_VISIBLE_DEVICES (or all GPUs).
+bash scripts/serve_qwen36.sh
+```
+
+The model's HF arch is `qwen3_5_moe` (256 experts / 8 active, 40 layers,
+262K native ctx). `vllm serve` loads its config independently of
+`transformers.AutoConfig`, so the served-name + max-model-len defaults
+work out of the box. Override anything with env vars:
+
+```bash
+QWEN36_DIR=/data/models/Qwen3.6-35B-A3B \
+QWEN36_NAME=qwen3.6-plus \
+QWEN36_PORT=8000 \
+QWEN36_TP=4 \
+QWEN36_MAX_LEN=131072 \
+QWEN36_GPU_UTIL=0.92 \
+bash scripts/serve_qwen36.sh
+```
+
+Once the endpoint reports `Application startup complete`, point the agent
+at it by setting `BASE_URL=http://127.0.0.1:8000/v1` and
+`MODEL=qwen3.6-plus` before sourcing `configs/inference.env` (or just
+edit those two lines in the file).
+
+### Production preference (existing endpoint)
+
 
 The production preference is pre-baked in **`configs/inference.env`**:
 

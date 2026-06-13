@@ -31,6 +31,11 @@ bash scripts/start_all.sh       # jina_pool + serper_pool + local_sandbox
 python pools/jina_pool/manage_keys.py  add YOUR_JINA_KEY
 python pools/serper_pool/manage_keys.py add YOUR_SERPER_KEY
 source configs/inference.env    # production-tuned BASE_URL / MODEL / SUMMARY_*
+
+# Optional: self-host Qwen3.6-35B-A3B locally via vllm instead of using a
+# remote endpoint. See INSTALL.md §5a.
+# pip install -r requirements-serve.txt
+# bash scripts/download_qwen36.sh && bash scripts/serve_qwen36.sh
 ```
 
 End-to-end smoke test:

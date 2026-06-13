@@ -1,0 +1,16 @@
+# Extra deps to *serve* Qwen3.6-35B-A3B locally with vllm.
+# Install on top of requirements.txt only when you need to stand up your own
+# OpenAI-compatible endpoint instead of pointing BASE_URL at an existing one.
+#
+#   pip install -r requirements.txt
+#   pip install -r requirements-serve.txt
+#
+# Qwen3.6-35B-A3B's real architecture is `qwen3_5_moe`. It loads fine via the
+# vllm serve CLI on stock packages — no source build, no transformers
+# upgrade. transformers's AutoConfig won't recognize qwen3_5_moe in isolation
+# but vllm parses its config independently, so serving is unaffected.
+
+vllm>=0.18
+transformers>=4.57
+torch>=2.6
+huggingface_hub>=0.26
