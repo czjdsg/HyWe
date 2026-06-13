@@ -34,7 +34,7 @@ import urllib.request
 from pathlib import Path
 
 SYNTH_BASE = os.environ.get("SYNTH_BASE", "http://localhost:8000/v1")
-SYNTH_MODEL = os.environ.get("SYNTH_MODEL", "aws.claude-opus-4-6")
+SYNTH_MODEL = os.environ.get("SYNTH_MODEL", "qwen3.7-max")
 API_KEY = os.environ.get("SYNTH_API_KEY", "EMPTY")
 
 

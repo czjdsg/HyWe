@@ -98,7 +98,7 @@ default in the corresponding `*.py`.
 | `SUMMARY_BASE_URL`  | `http://localhost:8000/v1` | Visit summary (B and explorer) |
 | `SUMMARY_MODEL`     | `deepseek-v4-flash` | Visit summary |
 | `SYNTH_BASE`        | `http://localhost:8000/v1` | Stage C synthesis |
-| `SYNTH_MODEL`       | `aws.claude-opus-4-6` | Stage C synthesis |
+| `SYNTH_MODEL`       | `qwen3.7-max` | Stage C synthesis |
 | `PIPE_BASE_URL`     | `http://localhost:8000/v1` | Stage R operator endpoint |
 | `PIPE_VISION_BASE_URL` | `PIPE_BASE_URL` | Stage R router + summary endpoint |
 | `PIPE_ROUTER_MODEL` | `kimi-k2.6` | Stage R router |
@@ -148,7 +148,7 @@ sits in `scripts/v8_experiment.env`:
 | A operator (vision)    | `qwen3.7-plus`         | :8000 |
 | A fact extractor       | `kimi-k2.6` (vision)   | :8002 |
 | B search probe         | `qwen3.7-max`          | :8000 |
-| C task synth           | `aws.claude-opus-4-7`  | :8002 |
+| C task synth           | `qwen3.7-max`          | :8002 |
 | R operator (vision)    | `qwen3.7-plus`         | :8000 |
 | R router               | `kimi-k2.6`            | :8002 |
 | R search side          | `qwen3.7-max`          | :8000 |

@@ -50,7 +50,7 @@ export FACT_MODEL="${FACT_MODEL:-kimi-k2.6}"
 export FACT_API_BASE="${FACT_API_BASE:-http://localhost:8000/v1}"
 
 # C-stage synth model
-export SYNTH_MODEL="${SYNTH_MODEL:-aws.claude-opus-4-7}"
+export SYNTH_MODEL="${SYNTH_MODEL:-qwen3.7-max}"
 
 # R-stage operator model (pipeline_driver reads this)
 export R_OPERATION_MODEL="${R_OPERATION_MODEL:-qwen3.7-plus}"
