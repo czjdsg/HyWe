@@ -1,0 +1,37 @@
+# Data, caches, logs — everything that's not source
+data/
+dry_run/
+logs/
+mm_eval/
+molmoweb_quality/
+webchain_quality/
+orange_fix_preview_v*/
+
+# Image caches (huge — many GB)
+data/molmoweb_images/
+data/webchain_images/
+data/webchain_images_original_backup_before_orange_remove/
+*.jpg
+*.jpeg
+*.png
+*.parquet
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Local secrets / configs
+.env
+.env.local
+*.key
+*.pem
