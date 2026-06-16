@@ -73,10 +73,12 @@ The pipeline reads a **site pool JSON** with one record per candidate site:
 ]
 ```
 
-Pass it via `--pool /path/to/pool.json`. Format can also be `{"all_usable":
-[...]}`. The repo does not ship a pool — `scripts/v8_*_launch.sh` defaults
-to `benchmarks/data/hybrid_pool/hybrid_pool_combined.json` which **you need
-to provide on the deployment machine** (or override `POOL=...`).
+Pass it via `--pool /path/to/pool.json`. Format can also be
+`{"all_usable": [...]}` — the schema used by the bundled pool. `scripts/v8_*_launch.sh`
+defaults to `benchmarks/data/hybrid_pool/hybrid_pool_combined.json` which
+**ships with the repo** (1170 sites across 24 categories — adjudicated +
+probe-validated). Override with `POOL=/path/to/another.json` to point at
+a different pool.
 
 ## Configuration — env vars
 
