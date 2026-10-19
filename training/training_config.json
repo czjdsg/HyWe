@@ -1,5 +1,5 @@
 {
-  "source": "Released checkpoint saved args.json; audited in the paper training configuration.",
+  "source": "qwen36_turbo_web_hybrid.0909_mix2/args.json; audited checkpoint arguments with machine-specific path prefixes removed.",
   "latest_checkpointed_iteration": 564,
   "saved_configuration": {
     "model": "Qwen/Qwen3.6-35B-A3B",
@@ -49,14 +49,14 @@
     "recompute_method": "uniform",
     "recompute_num_layers": 1,
     "dataset": [
-      "HyWe-Hybrid-SFT-Data",
-      "HyWe-Search-SFT-Data (128K multi-turn)"
+      "train_mix2_aquila_hybrid.jsonl"
     ],
     "interleave_prob": null,
     "dataset_shuffle": true,
     "train_dataloader_shuffle": true,
     "split_dataset_ratio": 0.0,
-    "save_steps": 565
+    "save_steps": 565,
+    "local_world_size": 8
   },
   "not_recorded": [
     "GPU model",
@@ -67,6 +67,11 @@
     "Values describe saved configuration; one configured epoch is not an independent audit of all training updates.",
     "The saved iteration is 564; save_steps=565 is a save interval, not the completed update count.",
     "optimizer is stored as adam; no unverified optimizer variant is substituted.",
-    "World size is a distributed process count; GPU model is not inferred from it."
+    "World size is a distributed process count; GPU model is not inferred from it.",
+    "The saved dataset list contains one mixed JSONL file. Released source datasets are listed separately; exact mixture proportions were not recorded."
+  ],
+  "released_source_datasets": [
+    "yzxjb/HyWe-Hybrid-SFT-Data",
+    "yzxjb/HyWe-Search-SFT-Data"
   ]
 }

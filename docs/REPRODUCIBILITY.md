@@ -55,6 +55,14 @@ runs; the archived paper verdicts are preserved without rewriting scores.
 
 ## Limits
 
+The migrated search dataset's source card lists 10,413 samples, but the
+verified current source file contains 10,012 non-empty JSONL records. Its
+source SHA-256 and bytes are preserved on HF; the original card is retained
+as `MODELSCOPE_README.md` alongside the correction in the new card.
+The [migration manifest](dataset-migration-manifest.json) pins the verified
+HF revisions and records every source file's size and SHA-256, the observed
+sample counts, and the hybrid screenshot-reference check.
+
 Live websites, CAPTCHA policies, search indices, provider models, and API
 quotas change. Full training provenance is limited to the saved configuration
 documented in `training/`. A passing local scripted smoke run verifies browser,

@@ -10,6 +10,9 @@ and adapters for the operation and deep-search benchmarks used in the paper.
 from Qwen3.6-35B-A3B. Screenshots use a 1280×720 viewport and the model uses
 coordinates on a 0–1000 grid. Kimi endpoints are adapted to their 0–1 convention.
 
+**Training data:** [HyWe-Hybrid-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Hybrid-SFT-Data)
+and [HyWe-Search-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Search-SFT-Data).
+
 ## Quick start
 
 Python 3.10+ and Chromium are required. Run these commands from the repository root:

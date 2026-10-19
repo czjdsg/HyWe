@@ -1,0 +1,267 @@
+{
+  "verified_at_utc": "2026-10-19T12:00:58.562015+00:00",
+  "verification": [
+    "All source files checked against ModelScope SHA-256 values.",
+    "HF file sizes and LFS SHA-256 metadata matched the source.",
+    "Git-backed source files were read back at pinned HF revisions and hashed.",
+    "Training sample counts and hybrid image references were checked locally."
+  ],
+  "datasets": [
+    {
+      "source": "https://modelscope.cn/datasets/yzxjb11/HybridWebTraj-v1",
+      "target": "https://huggingface.co/datasets/yzxjb/HyWe-Hybrid-SFT-Data",
+      "hf_revision": "67c271b1e5dcd16f83fc265e8559c254e639cdda",
+      "private": false,
+      "source_file_count": 20,
+      "source_bytes": 11534069683,
+      "content_verification": {
+        "source": "HybridWebTraj-v1",
+        "samples": 8055,
+        "task_ids": 3735,
+        "sides": {
+          "S": 3968,
+          "O": 4087
+        },
+        "unique_image_references": 45045,
+        "archive_images": 45045,
+        "image_bytes": 11019293957,
+        "missing_image_references": 0,
+        "sampled_image_dimensions": [
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1280,
+            720
+          ]
+        ],
+        "status": "passed"
+      },
+      "files": [
+        {
+          "source_path": ".gitattributes",
+          "hf_path": ".gitattributes",
+          "size": 3818,
+          "sha256": "53b61e55812199dea8ffe90c52485e2ec5e5bdae1eed92cab20063003da14e29"
+        },
+        {
+          "source_path": "images_shards/images_00_0f.tar",
+          "hf_path": "images_shards/images_00_0f.tar",
+          "size": 676044800,
+          "sha256": "325fcbddabe1ffdc433a3dcc124a1bf95cff1f8361daa4ed5283af9de2ec3b41"
+        },
+        {
+          "source_path": "images_shards/images_10_1f.tar",
+          "hf_path": "images_shards/images_10_1f.tar",
+          "size": 695767040,
+          "sha256": "8e722eb15e4af1aacd6ce653f6dcd87df16215e4779b62c150a1f6d5d2e19780"
+        },
+        {
+          "source_path": "images_shards/images_20_2f.tar",
+          "hf_path": "images_shards/images_20_2f.tar",
+          "size": 699596800,
+          "sha256": "b4063a14d4dd31d7ddf7f4328692caf0950afd56e5a0c5c4b8ddc059572dd645"
+        },
+        {
+          "source_path": "images_shards/images_30_3f.tar",
+          "hf_path": "images_shards/images_30_3f.tar",
+          "size": 686458880,
+          "sha256": "8af5899aad8c4315cf7277d47b79891405e850cc887fb9c582e34f17bac10b28"
+        },
+        {
+          "source_path": "images_shards/images_40_4f.tar",
+          "hf_path": "images_shards/images_40_4f.tar",
+          "size": 695787520,
+          "sha256": "85b48b08202ebb03d93553555aee293649630418d0af6281c431ee19bf49665c"
+        },
+        {
+          "source_path": "images_shards/images_50_5f.tar",
+          "hf_path": "images_shards/images_50_5f.tar",
+          "size": 708567040,
+          "sha256": "d6b408186de5476437222d661a2f5c9da0cbf71f9fa0481ba13230b4e35c7645"
+        },
+        {
+          "source_path": "images_shards/images_60_6f.tar",
+          "hf_path": "images_shards/images_60_6f.tar",
+          "size": 706447360,
+          "sha256": "f78e6b8fb2fa2a00bbe26d010f38c6cf2d361647932c54100a0310ee31422ede"
+        },
+        {
+          "source_path": "images_shards/images_70_7f.tar",
+          "hf_path": "images_shards/images_70_7f.tar",
+          "size": 690554880,
+          "sha256": "3484ef8e4816630b68ae581a6a70b254704651a36c5281ec5818cd56484739a2"
+        },
+        {
+          "source_path": "images_shards/images_80_8f.tar",
+          "hf_path": "images_shards/images_80_8f.tar",
+          "size": 699719680,
+          "sha256": "20190f9e9b399e90ecddd685710419b2c9b7536c6eb620264ebc0e1b99329e01"
+        },
+        {
+          "source_path": "images_shards/images_90_9f.tar",
+          "hf_path": "images_shards/images_90_9f.tar",
+          "size": 701818880,
+          "sha256": "4ae34731af12964399d3095789966184fe7842977f2ef1ec5b9826ec27e38cd3"
+        },
+        {
+          "source_path": "images_shards/images_a0_af.tar",
+          "hf_path": "images_shards/images_a0_af.tar",
+          "size": 686295040,
+          "sha256": "8a3079805360fabd57ea678b5a1aa42d11936d007ac835be8d5f539efcaccb9e"
+        },
+        {
+          "source_path": "images_shards/images_b0_bf.tar",
+          "hf_path": "images_shards/images_b0_bf.tar",
+          "size": 700241920,
+          "sha256": "6fba5d17f4c9b04250f31f67432c9f1c583a0da10f8ed0e702b5724df16dd976"
+        },
+        {
+          "source_path": "images_shards/images_c0_cf.tar",
+          "hf_path": "images_shards/images_c0_cf.tar",
+          "size": 691496960,
+          "sha256": "02e74e6ff49e4386914ce9511296406e05303addbae909665a63d79e9fa227ed"
+        },
+        {
+          "source_path": "images_shards/images_d0_df.tar",
+          "hf_path": "images_shards/images_d0_df.tar",
+          "size": 687564800,
+          "sha256": "01c8eee14a17f5e732d2c7446edadcdf89d5e900663d358bef1d39b1541d680b"
+        },
+        {
+          "source_path": "images_shards/images_e0_ef.tar",
+          "hf_path": "images_shards/images_e0_ef.tar",
+          "size": 658257920,
+          "sha256": "4b13803349618fdc9a83e0d6b9a3f5fea8a6c0a99e10fb4fcdcaccaa5a528656"
+        },
+        {
+          "source_path": "images_shards/images_f0_ff.tar",
+          "hf_path": "images_shards/images_f0_ff.tar",
+          "size": 669470720,
+          "sha256": "f25832403b85d117d264821b327aee15a30cc2ffce1c20496c00a70ace505118"
+        },
+        {
+          "source_path": "meta.json",
+          "hf_path": "meta.json",
+          "size": 1151,
+          "sha256": "2beeb8f9da118883f035bf34ba8b3b0460983d13b37ac84c45bf3d428f0262af"
+        },
+        {
+          "source_path": "README.md",
+          "hf_path": "MODELSCOPE_README.md",
+          "size": 3712,
+          "sha256": "cebda6eca2eebfe1f48541cbe1c0c9a2270fc4517fd993f29563efbce9d5227d"
+        },
+        {
+          "source_path": "data/train.jsonl",
+          "hf_path": "data/train.jsonl",
+          "size": 479970762,
+          "sha256": "9630bfb3f547eb556f03b6f979db57b21e1712e3ac837ebfecc2451796728965"
+        }
+      ]
+    },
+    {
+      "source": "https://modelscope.cn/datasets/yzxjb11/aquila-sft-v2-react",
+      "target": "https://huggingface.co/datasets/yzxjb/HyWe-Search-SFT-Data",
+      "hf_revision": "4d7ebf509b6bf7e3035e82dcf91022b9c00f659a",
+      "private": false,
+      "source_file_count": 4,
+      "source_bytes": 3347312219,
+      "content_verification": {
+        "source": "aquila-sft-v2-react",
+        "samples": 10012,
+        "task_ids": 0,
+        "sides": {
+          "not_recorded": 10012
+        },
+        "unique_image_references": 0,
+        "samples_declared_in_original_card": 10413,
+        "metadata_discrepancy": "The source card lists 10,413 samples; the hash-verified current JSONL contains 10,012 rows.",
+        "status": "passed"
+      },
+      "files": [
+        {
+          "source_path": ".gitattributes",
+          "hf_path": ".gitattributes",
+          "size": 3808,
+          "sha256": "a044d175ea3ba4a43cee812cf857d9e8eb5bfa3cef26881c13e665ee7d714b5f"
+        },
+        {
+          "source_path": "dataset_infos.json",
+          "hf_path": "dataset_infos.json",
+          "size": 138,
+          "sha256": "e2ba4f0ac2bcfc3876256c3ddd4800986bc72b7f48620bde81fe0ea698e74ab5"
+        },
+        {
+          "source_path": "README.md",
+          "hf_path": "MODELSCOPE_README.md",
+          "size": 2961,
+          "sha256": "bc2b14fd0315b2917e9a2d2fec99c3e4408c74f4e1a9ee6fc179710e94191ea1"
+        },
+        {
+          "source_path": "train_aquila_v2_multiturn_128k.jsonl",
+          "hf_path": "train_aquila_v2_multiturn_128k.jsonl",
+          "size": 3347305312,
+          "sha256": "1d302f8c8e7b5e97b2e55455c8eed0081b4aca2bb3d7c8f9ed75174d1ccda462"
+        }
+      ]
+    }
+  ]
+}

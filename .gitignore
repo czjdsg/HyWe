@@ -8,6 +8,7 @@ venv/
 runs/
 logs/
 benchmarks/data/
+/data/
 configs/*.env
 !configs/*.env.example
 *.log

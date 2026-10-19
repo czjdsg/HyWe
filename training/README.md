@@ -7,12 +7,29 @@ Released data:
   screenshots in tar shards. Extract `images_shards/*.tar` at the dataset root
   before resolving `images/...` references.
 - [HyWe-Search-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Search-SFT-Data)
-  contains the 128K multi-turn conversion of 7,000 XYZ-Aquila-SFT trajectories
-  (10,413 rendered samples). Download `train_aquila_v2_multiturn_128k.jsonl`.
+  contains the 128K multi-turn conversion of XYZ-Aquila-SFT trajectories.
+  The current source snapshot has **10,012 JSONL samples**. Download
+  `train_aquila_v2_multiturn_128k.jsonl`.
 
 These mirror the ModelScope releases `yzxjb11/HybridWebTraj-v1` and
 `yzxjb11/aquila-sft-v2-react`. Original source cards are retained in the HF
 repositories. The raw training files and screenshot archives are unchanged.
+The original search data card describes 7,000 input trajectories and 10,413
+rendered samples; the current ModelScope file contains 10,012 rows. The mirror
+preserves the file exactly and records the observed count separately rather
+than modifying it to match the older card.
+
+Download the released files and extract the screenshot archives:
+
+```bash
+hf download yzxjb/HyWe-Hybrid-SFT-Data --repo-type dataset --local-dir data/hybrid
+hf download yzxjb/HyWe-Search-SFT-Data --repo-type dataset --local-dir data/search
+for shard in data/hybrid/images_shards/*.tar; do tar -xf "$shard" -C data/hybrid; done
+```
+
+The hybrid samples are in `data/hybrid/data/train.jsonl`; image paths resolve
+relative to `data/hybrid`. The search samples are in
+`data/search/train_aquila_v2_multiturn_128k.jsonl`.
 
 ## Export newly collected trajectories
 
