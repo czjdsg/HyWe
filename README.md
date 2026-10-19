@@ -1,4 +1,13 @@
-# HyWe: Unifying Search and Operation for Real-World Hybrid Web Tasks
+<h1 align="center">HyWe</h1>
+<p align="center"><strong>Unifying Search and Operation for Real-World Hybrid Web Tasks</strong></p>
+
+<p align="center">
+  <a href="https://huggingface.co/yzxjb/HyWe-35B"><img src="assets/badges/model.svg" alt="Hugging Face model: HyWe-35B"></a>
+  <a href="https://huggingface.co/datasets/yzxjb/HyWeBench"><img src="assets/badges/benchmark.svg" alt="Hugging Face benchmark: HyWeBench"></a>
+  <br>
+  <a href="https://huggingface.co/datasets/yzxjb/HyWe-Hybrid-SFT-Data"><img src="assets/badges/hybrid-sft.svg" alt="Hugging Face hybrid training data"></a>
+  <a href="https://huggingface.co/datasets/yzxjb/HyWe-Search-SFT-Data"><img src="assets/badges/search-sft.svg" alt="Hugging Face search training data"></a>
+</p>
 
 HyWe combines search tools and browser operation in one agent. The agent uses
 `switch` to change its tool interface and rebuild context while retaining its
@@ -6,12 +15,16 @@ execution history. This release contains the inference framework,
 **HyWeCollector** data pipeline, **HyWeBench** tasks and checklist evaluator,
 and adapters for the operation and deep-search benchmarks used in the paper.
 
-**Model:** [yzxjb/HyWe-35B](https://huggingface.co/yzxjb/HyWe-35B), fine-tuned
-from Qwen3.6-35B-A3B. Screenshots use a 1280×720 viewport and the model uses
+**HyWe-35B** is fine-tuned from Qwen3.6-35B-A3B. Screenshots use a
+1280×720 viewport and the model uses
 coordinates on a 0–1000 grid. Kimi endpoints are adapted to their 0–1 convention.
 
-**Training data:** [HyWe-Hybrid-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Hybrid-SFT-Data)
-and [HyWe-Search-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Search-SFT-Data).
+## Overview
+
+[![The HyWe framework and HyWeCollector pipeline from the paper](assets/overview.png)](assets/overview.pdf)
+
+*The paper's overview of the HyWe framework and HyWeCollector pipeline.
+Click the image to open the original vector PDF.*
 
 ## Quick start
 
@@ -67,6 +80,12 @@ The runner resumes completed tasks and retries unfinished infrastructure failure
 it exits unsuccessfully if its retry rounds finish with tasks still incomplete.
 
 ## Evaluation
+
+🤗 **[HyWeBench on Hugging Face](https://huggingface.co/datasets/yzxjb/HyWeBench)**
+contains the 100 evaluation tasks and their fixed checklists: 309 information
+items and 247 operation items. The same task file ships in
+`benchmarks/hywebench/`; see the [benchmark guide](benchmarks/hywebench/README.md)
+for the dataset schema and download options.
 
 Recompute all published HyWeBench task/subgoal metrics without any model calls:
 

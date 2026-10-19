@@ -21,7 +21,8 @@ browser operation in one tool-using agent, using `switch` to change modes.
 The checkpoint is fine-tuned from Qwen3.6-35B-A3B and is stored in BF16 across
 16 safetensors shards (approximately 70.2 GB including configuration files).
 
-[Code, setup, and evaluation](https://github.com/czjdsg/HybridWebAgent)
+💻 [Code, setup, and evaluation](https://github.com/czjdsg/HyWe) ·
+🤗 [HyWeBench](https://huggingface.co/datasets/yzxjb/HyWeBench)
 
 ## Use with the HyWe framework
 
@@ -44,9 +45,9 @@ context renderer does not reproduce the benchmark setup.
 
 ## Data and training
 
-- [HyWe-Hybrid-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Hybrid-SFT-Data):
+- 🤗 [HyWe-Hybrid-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Hybrid-SFT-Data):
   3,735 hybrid trajectories, 8,055 rendered segments and 45,045 original screenshots.
-- [HyWe-Search-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Search-SFT-Data):
+- 🤗 [HyWe-Search-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Search-SFT-Data):
   the 128K multi-turn conversion of 7,000 XYZ-Aquila-SFT trajectories.
 
 Training used full language-model fine-tuning with the vision encoder and

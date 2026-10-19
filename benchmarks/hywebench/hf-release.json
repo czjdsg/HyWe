@@ -1,0 +1,17 @@
+{
+  "dataset": "yzxjb/HyWeBench",
+  "source": "https://github.com/czjdsg/HyWe/blob/main/benchmarks/hywebench/hywebench_100.jsonl",
+  "split": "test",
+  "tasks": 100,
+  "information_items": 309,
+  "operation_items": 247,
+  "start_modes": {
+    "O": 32,
+    "S": 68
+  },
+  "source_file_sha256": "e774e82738f17af800a2f886ae2fb1e4ddb44fc94ab36bcc6cf15124bcb455cf",
+  "source_file_bytes": 156722,
+  "data_file": "data/test.jsonl",
+  "hf_revision": "373b7ed8e689a380ebaf906f5b34795f347ee73f",
+  "url": "https://huggingface.co/datasets/yzxjb/HyWeBench"
+}

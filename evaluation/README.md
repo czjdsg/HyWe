@@ -6,6 +6,9 @@ sourcing `configs/hywe.env`. `PROFILE=operation` uses 100 steps;
 
 ## HyWeBench
 
+🤗 **[Download HyWeBench on Hugging Face](https://huggingface.co/datasets/yzxjb/HyWeBench)**
+provides the same tasks and checklists as the file included below.
+
 `benchmarks/hywebench/hywebench_100.jsonl` contains 100 public tasks with fixed
 human-written checklists: 309 information items and 247 operation items.
 Checklists are not put in the policy prompt. S-start tasks have an empty `web`;

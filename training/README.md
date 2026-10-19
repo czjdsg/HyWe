@@ -2,11 +2,11 @@
 
 Released data:
 
-- [HyWe-Hybrid-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Hybrid-SFT-Data)
+- 🤗 [HyWe-Hybrid-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Hybrid-SFT-Data)
   contains 3,735 trajectories rendered as 8,055 segments, with 45,045 original
   screenshots in tar shards. Extract `images_shards/*.tar` at the dataset root
   before resolving `images/...` references.
-- [HyWe-Search-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Search-SFT-Data)
+- 🤗 [HyWe-Search-SFT-Data](https://huggingface.co/datasets/yzxjb/HyWe-Search-SFT-Data)
   contains the 128K multi-turn conversion of XYZ-Aquila-SFT trajectories.
   The current source snapshot has **10,012 JSONL samples**. Download
   `train_aquila_v2_multiturn_128k.jsonl`.
