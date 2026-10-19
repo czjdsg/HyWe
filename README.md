@@ -1,206 +1,175 @@
-# HybridWebAgent
+# HyWe: Unifying Search and Operation for Real-World Hybrid Web Tasks
 
-End-to-end pipeline for **hybrid web tasks** — a single agent that mixes
-browser operation, web search, and webpage reading — together with the
-reference-answer evaluation framework used to score it.
+HyWe combines search tools and browser operation in one agent. The agent uses
+`switch` to change its tool interface and rebuild context while retaining its
+execution history. This release contains the inference framework,
+**HyWeCollector** data pipeline, **HyWeBench** tasks and checklist evaluator,
+and adapters for the operation and deep-search benchmarks used in the paper.
 
-This repository bundles seven things:
-
-| Component | Path | Purpose |
-| --- | --- | --- |
-| Inference framework | `inference/` | The agent itself: Playwright runtime, IterResearch-style controller, search / scholar / visit / code-sandbox tools, multiple ablation modes. |
-| Evaluation framework | `evaluation/` | Reference-answer judges (Type 1) for both **operation** benchmarks (WebVoyager, Online-Mind2Web) and **search / deep-research** benchmarks (BrowseComp, FRAMES, GAIA, WebWalkerQA, HLE, …). |
-| Benchmark data | `benchmarks/data/` | Curated JSONL splits for the operation + search benchmarks above. |
-| Data-generation pipeline | `synth3/` | A→B→C→R pipeline that produces (task, reference answer, rollout) triples from a site pool. See `synth3/README.md`. |
-| Local API-key pools | `pools/jina_pool/`, `pools/serper_pool/` | Local key-rotation proxies for Jina Reader and Serper. Ship **empty** by design — add your own keys after cloning. |
-| Local code sandbox | `tools/local_sandbox/` | Pure-Python HTTP server that speaks the same `/run_code` JSON contract as the vemlp `code-sandbox` Docker image. Use this on hosts where Docker is unavailable (Autodl, locked-down VMs). Supports python/bash/nodejs/cpp/go/typescript. |
-| Inference preference | `configs/inference.env` | Production-tuned env wiring: `BASE_URL`, `MODEL`, `SUMMARY_MODEL`, key-pool URLs, sandbox URL — `source` this file before launching the agent. |
-
-The agent itself is described in detail in `inference/README.original.md` and
-`inference/ARCHITECTURE.md` / `inference/WORKFLOW_OVERVIEW.md`. The evaluation
-framework's design is documented in `evaluation/README.original.md` and
-`evaluation/docs/STATEFUL_*.md`.
+**Model:** [yzxjb/HyWe-35B](https://huggingface.co/yzxjb/HyWe-35B), fine-tuned
+from Qwen3.6-35B-A3B. Screenshots use a 1280×720 viewport and the model uses
+coordinates on a 0–1000 grid. Kimi endpoints are adapted to their 0–1 convention.
 
 ## Quick start
 
-```bash
-git clone git@github.com:czjdsg/HybridWebAgent.git
-cd HybridWebAgent
-bash scripts/install.sh         # see INSTALL.md for what this does
-bash scripts/start_all.sh       # jina_pool + serper_pool + local_sandbox
-python pools/jina_pool/manage_keys.py  add YOUR_JINA_KEY
-python pools/serper_pool/manage_keys.py add YOUR_SERPER_KEY
-source configs/inference.env    # production-tuned BASE_URL / MODEL / SUMMARY_*
-
-# Optional: self-host Qwen3.6-35B-A3B locally via vllm instead of using a
-# remote endpoint. See INSTALL.md §5a.
-# pip install -r requirements-serve.txt
-# bash scripts/download_qwen36.sh && bash scripts/serve_qwen36.sh
-```
-
-End-to-end smoke test:
+Python 3.10+ and Chromium are required. Run these commands from the repository root:
 
 ```bash
-python inference/run_hybrid_web_agent.py \
-  --input-path benchmarks/data/operation/web_webvoyager_643_final.jsonl \
-  --base-url $BASE_URL --model $MODEL --api-key $API_KEY \
-  --summary-base-url $SUMMARY_BASE_URL --summary-model $SUMMARY_MODEL \
-  --code-sandbox-base-url $CODE_SANDBOX_BASE_URL \
-  --headless \
-  --output-dir runs/smoke
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+playwright install chromium
+# Linux hosts missing Chromium system libraries: playwright install --with-deps chromium
+cp configs/hywe.env.example configs/hywe.env
+# Edit configs/hywe.env: set the policy/summarizer endpoints and your Jina/Serper keys.
+source configs/hywe.env
 ```
 
-Then score it:
+The policy needs a vision-capable, OpenAI-compatible chat endpoint. To host the
+released weights with vLLM, install `requirements-serve.txt` in a separate serving
+environment, then run:
 
 ```bash
-python evaluation/scripts/evaluate_reference_answers.py \
-  --run-dir runs/smoke \
-  --output-dir runs/smoke/eval \
-  --base-url $BASE_URL --model $MODEL --api-key $API_KEY
+vllm serve yzxjb/HyWe-35B --served-model-name HyWe-35B \
+  --host 127.0.0.1 --port 8000 --tensor-parallel-size 2 --max-model-len 224000
 ```
 
-(All inference defaults — coord-scale, temperature, max-iter, window size,
-timeouts, visit-images — are documented in `inference/DEFAULTS.md`.)
+Adjust GPU count and concurrency to your available memory. The BF16 checkpoint
+is approximately 70.2 GB before KV cache. The release does not require GPU
+inference locally if you supply an endpoint. See [INSTALL.md](INSTALL.md) for
+configuration, serving, and troubleshooting.
 
-## Repository layout
-
-```
-HybridWebAgent/
-├── README.md                   # this file
-├── INSTALL.md                  # full install instructions
-├── requirements.txt            # pip dependencies
-├── scripts/                    # install + pool management helpers
-│   ├── install.sh
-│   ├── start_pools.sh
-│   └── stop_pools.sh
-├── inference/                  # agent + runtime + tools
-│   ├── run_hybrid_web_agent.py   # CLI entrypoint
-│   ├── hybrid_agent.py           # main controller loop
-│   ├── hybrid_runtime.py         # Playwright runtime
-│   ├── hybrid_prompts.py         # prompts + tool schemas (~96K)
-│   ├── hybrid_search.py          # Serper-backed `search`
-│   ├── hybrid_scholar.py         # Google Scholar (Serper-Scholar)
-│   ├── hybrid_visit.py           # Jina-Reader-backed `visit`
-│   ├── hybrid_code_sandbox.py    # code execution tool
-│   ├── hybrid_utils.py
-│   ├── visualize_*.py            # trajectory viewers
-│   ├── ARCHITECTURE.md / WORKFLOW_OVERVIEW.md
-│   └── requirements.txt
-├── evaluation/                 # answer-eval framework
-│   ├── scripts/
-│   │   ├── evaluate_reference_answers.py   # Type-1 reference-answer judge
-│   │   ├── evaluate_classified_web_tasks.py
-│   │   ├── classify_task_validation_type.py
-│   │   ├── classify_defer_answer_points.py
-│   │   ├── rewrite_insta_criteria.py
-│   │   └── ...
-│   ├── prompts/                # all judge prompts
-│   └── docs/                   # STATEFUL_DEFER / STATEFUL_OPERATION / ANNOTATION_*
-├── benchmarks/data/
-│   ├── operation/              # WebVoyager-643, Online-Mind2Web-256
-│   ├── search/                 # BrowseComp / FRAMES / GAIA / WebWalkerQA / HLE / DeepSearch / browsecomp_zh
-│   └── annotations/            # sidecar annotation JSONs (for routes beyond static_answer)
-├── synth3/                     # data-generation pipeline (explore → probe → synth → rollout)
-│   ├── pipeline_driver.py        # full A→B→C→R streaming driver
-│   ├── synth_driver.py           # explore-only
-│   ├── rollout_watcher.py        # incremental R-stage launcher
-│   ├── explorer_agent[_v8].py    # A-stage agents
-│   ├── fact_prober[_v2].py       # B-stage probers
-│   ├── task_synth.py             # C-stage synthesizer
-│   ├── qa_sampler.py / qa_loop.sh # periodic LLM QA review
-│   ├── build_pipe_viz.py / viz/  # HTML viewer (ships with a demo trajectory)
-│   ├── scripts/v8_*_launch.sh    # production launchers
-│   └── README.md                 # pipeline + env-var reference
-├── pools/
-│   ├── jina_pool/              # Jina Reader key-rotation proxy (empty DB)
-│   └── serper_pool/            # Serper key-rotation proxy (empty DB)
-└── vendor/
-    └── mobile_agent_browser_use/   # vendored SoM / clean_html (Mobile-Agent-v3.5)
-```
-
-## Benchmarks shipped here
-
-All datasets in this repository carry **reference answers** and are evaluated
-by the **Type-1 route** (`evaluate_reference_answers.py` against
-`prompts/judge_reference_answer.txt` / `judge_static_answer.txt`).
-
-### Operation (browser-driven tasks)
-
-| File | Tasks | Source |
-| --- | --: | --- |
-| `benchmarks/data/operation/web_webvoyager_643_final.jsonl` | 643 | WebVoyager (full) |
-| `benchmarks/data/operation/web_online_mind2web_256_nohuman_final.jsonl` | 256 | Online-Mind2Web (no-human-verification subset) |
-
-### Search / deep-research (Type-1 answer benchmarks)
-
-| File | Tasks | Source |
-| --- | --: | --- |
-| `benchmarks/data/search/dr_browsecomp_1266.jsonl` | 1 266 | BrowseComp (test) |
-| `benchmarks/data/search/dr_browsecomp_zh_289.jsonl` | 289 | BrowseComp-ZH |
-| `benchmarks/data/search/dr_deepsearch_100.jsonl` | 100 | DeepSearch |
-| `benchmarks/data/search/dr_frames_824.jsonl` | 824 | FRAMES |
-| `benchmarks/data/search/dr_gaia_test_301.jsonl` | 301 | GAIA test |
-| `benchmarks/data/search/dr_gaia_validation_165.jsonl` | 165 | GAIA validation |
-| `benchmarks/data/search/dr_hle_test_2500.jsonl` | 2 500 | HLE test |
-| `benchmarks/data/search/dr_webwalkerqa_main_680.jsonl` | 680 | WebWalkerQA (main) |
-
-Per-record schema (canonical):
-
-```json
-{
-  "task_id": "BrowseComp-test-1",
-  "question": "...",
-  "answer": "1988-96",         // reference answer (Type 1)
-  "web": "",                   // optional start URL (mostly for operation tasks)
-  "dataset": "BrowseComp",
-  "split": "test",
-  "extra": {...},
-  "raw": {...}
-}
-```
-
-Operation records additionally carry a `web` start URL. Search records carry
-an empty `web` and let the agent decide where to navigate.
-
-## Pools
-
-The local **Jina Reader** and **Serper** key-rotation proxies ship with no
-keys. Both default to an empty SQLite DB next to their package (no DB is
-committed; first run creates one).
+Start the optional code tool in another terminal:
 
 ```bash
-# 1. Start both pools (default 127.0.0.1:8766 / 127.0.0.1:8765)
-bash scripts/start_pools.sh
-
-# 2. Add your keys (DB is created on first add)
-python pools/jina_pool/manage_keys.py add  YOUR_JINA_KEY_1 YOUR_JINA_KEY_2 --label-prefix mine
-python pools/serper_pool/manage_keys.py add YOUR_SERPER_KEY_1 --label main-1
-
-# 3. Verify
-curl http://127.0.0.1:8766/healthz
-curl http://127.0.0.1:8765/healthz
+python tools/local_sandbox/server.py --host 127.0.0.1 --port 8080
 ```
 
-Tell the agent to use them:
+It executes subprocesses as your current user; use it only on your own trusted
+development machine. An existing SandboxFusion-compatible `/run_code` service
+can be substituted with `CODE_SANDBOX_BASE_URL`.
+
+Run a task or the full hybrid benchmark:
 
 ```bash
-export JINA_READER_BASE_URL=http://127.0.0.1:8766
-export SERPER_BASE_URL=http://127.0.0.1:8765
+bash scripts/run_hywe.sh examples/task.jsonl runs/example operation
+bash scripts/run_hywe.sh benchmarks/hywebench/hywebench_100.jsonl runs/hywebench operation
 ```
 
-(These two env vars are the only contract the agent has with the pools — you
-can also point them at any other compatible upstream.)
+`web` controls the starting mode: a non-empty URL starts browser operation;
+otherwise the task starts in search mode. `operation`/`search` above selects
+the step budget (100/300), not the starting mode. Each task produces
+`<run>/<task_id>/result.json`, `meta.json`, and its screenshot trajectory.
+The runner resumes completed tasks and retries unfinished infrastructure failures;
+it exits unsuccessfully if its retry rounds finish with tasks still incomplete.
 
-Pool internals (rotation, cooldown, exhausted-key handling) are documented in
-`pools/jina_pool/README.original.md` and `pools/serper_pool/README.original.md`.
+## Evaluation
 
-## Installation
+Recompute all published HyWeBench task/subgoal metrics without any model calls:
 
-See **[INSTALL.md](INSTALL.md)** for the full one-shot setup on a fresh
-machine, including model-endpoint expectations.
+```bash
+python evaluation/hywebench/score.py evaluation/hywebench/paper_verdicts/*.jsonl
+```
 
-## License
+| Agent | Task success | Information subgoals | Operation subgoals |
+| --- | ---: | ---: | ---: |
+| Qwen3.6-35B-A3B base | 28.0 | 74.8 | 43.7 |
+| HyWe-35B | **47.0** | **82.2** | **68.8** |
 
-Research code. Re-uses third-party prompts and SoM grounding code from
-[Mobile-Agent-v3.5](https://github.com/X-PLUG/MobileAgent) (vendored under
-`vendor/mobile_agent_browser_use/`).
+These are aggregations of the archived judge outputs, not new live-site runs.
+All 100 benchmark tasks, their fixed checklists, and 14 sets of verdicts are
+included. New trajectories require a vision-capable judge:
+
+```bash
+# Set JUDGE_BASE_URL / JUDGE_API_KEY / JUDGE_MODEL (paper: kimi-k3).
+bash evaluation/hywebench/judge.sh runs/hywebench
+```
+
+For other benchmarks:
+
+| Benchmark | Prepare tasks | Run profile | Judge entry point |
+| --- | --- | --- | --- |
+| WebVoyager (643) | Included in `benchmarks/webvoyager/` | `operation` | `evaluation/webvoyager/judge.sh` |
+| Online-Mind2Web (300) | `python benchmarks/prepare_benchmarks.py online_mind2web` | `operation` | `evaluation/online_mind2web/judge.sh` |
+| HLE test (2500, images included) | `python benchmarks/prepare_benchmarks.py hle` | `search` | `evaluation/search/judge.sh` |
+| xbench-DeepSearch-2510 (100) | `python benchmarks/prepare_benchmarks.py xbench` | `search` | `evaluation/search/judge.sh` |
+| BrowseComp-EN (1266) | `python benchmarks/prepare_benchmarks.py browsecomp` | `search` | `evaluation/search/judge.sh` |
+
+Accept the source dataset terms and set `HF_TOKEN` for the gated datasets.
+Converted tasks are kept in git-ignored `benchmarks/data/`. Operation judges
+use `OPENAI_API_KEY` and optional `OPENAI_BASE_URL`; their default models are
+`M2W_JUDGE_MODEL=o4-mini` and `WV_JUDGE_MODEL=gpt-4o`, independently of the policy
+`MODEL`. Search judging uses five votes at temperature 0.6 and majority voting,
+with exact matches accepted directly. See [evaluation/README.md](evaluation/README.md).
+
+## Collect data and export SFT samples
+
+The recommended model for every collection role is **kimi-k3**. Override
+individual roles in the example config to use a different executor, controller,
+or reviewer. Jina embeddings are a separate API used for semantic pairing.
+
+```bash
+cp configs/collector.env.example configs/collector.env
+# Fill in COLLECTOR_BASE_URL / COLLECTOR_API_KEY and the web-tool keys.
+source configs/collector.env
+
+# Probe a few sites first; use LIMIT=0 for the entire shipped site pool.
+LIMIT=5 bash collector/scripts/stage1_capability_probing.sh
+TAG=demo COUNT=20 bash collector/scripts/stage2_task_design.sh
+TAG=demo bash collector/scripts/stage3_teacher_rollout.sh
+TAG=demo bash collector/scripts/stage4_review_refine.sh
+TAGS=demo bash training/build_sft_data.sh
+```
+
+The stages cover capability probing, blueprint/task synthesis, coordinated
+teacher execution, and review/refinement. Export uses the inference renderer to
+produce segment-wise multi-turn samples with assistant loss masks and portable
+images. Stage 1 records the facts from which the shipped prototype catalog was
+abstracted; Stage 2 uses that curated catalog rather than automatically rewriting
+it from a new probe run. See [collector/README.md](collector/README.md) and
+[training/README.md](training/README.md) for stage artifacts and the saved
+training configuration.
+
+## Paper-to-code map
+
+| Component | Implementation |
+| --- | --- |
+| S/O tools, switching and runtime | `inference/hybrid_agent.py`, `hybrid_runtime.py`, `hybrid_*.py` |
+| ReAct rendering and context folding | `inference/react_v2.py`, `react_v2_prompts.py` |
+| Private teacher phase controller | `inference/teacher_phase_controller.py` |
+| Capability probing | `collector/stage1_probe.py`, `explorer_agent_v8.py`, `fact_prober_v2.py` |
+| Task blueprints and naturalization | `collector/hybrid_task_design_pipeline.py`, `hybrid_task_design.seed.json` |
+| Review, refinement and filtering | `collector/audit_trajectory_unified.py`, `collector/scripts/stage4_review_refine.sh` |
+| Segment export and loss masks | `training/build_hybrid_teacher_v2.py`, `training/build_sft_data.sh` |
+| HyWeBench fixed checklists and judge | `benchmarks/hywebench/`, `evaluation/hywebench/` |
+
+## Reproducibility and validation
+
+The release uses direct provider APIs, inline screenshots by default, and
+configurable endpoints. It does not ship the original machine's key-rotation
+services, tunnels, private gateways, or training-cluster paths.
+
+The archived evaluation launchers used **Jina Search**, while the paper appendix
+describes **Serper** for `search`. `configs/hywe.env.example` follows the archived
+runs with `HYBRID_SEARCH_BACKEND=jina`; select `serper` to follow the appendix
+description. Collection defaults to Serper. `scholar` uses Serper in both cases.
+This discrepancy and the limits of live-web reproduction are documented in
+[docs/REPRODUCIBILITY.md](docs/REPRODUCIBILITY.md).
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest -q
+python scripts/check_release.py
+python scripts/smoke_test.py        # local scripted model + real Chromium; no API keys
+```
+
+The smoke test verifies integration with deterministic scripted responses. It
+does not measure agent task-solving ability. Live sites and hosted models change;
+rerunning a workflow does not guarantee the same historical success rates.
+
+## License and attribution
+
+Original release code is licensed under [Apache-2.0](LICENSE). Adapted and
+vendored material retains its upstream terms; see
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and `LICENSES/`.
+Third-party benchmarks and model weights follow their respective source terms.

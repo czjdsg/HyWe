@@ -206,7 +206,7 @@ def coord_scale_for_model(model: str) -> int:
     m = (model or "").lower()
     if "kimi" in m:
         return 1
-    if "qwen" in m:
+    if "qwen" in m or "hywe" in m:
         return 1000
     if any(x in m for x in ("claude", "sonnet", "opus", "haiku")):
         return 0

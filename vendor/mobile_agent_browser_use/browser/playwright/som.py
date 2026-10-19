@@ -624,7 +624,7 @@ def draw_som(items, overlay, max_draw):
     try:
         font = ImageFont.truetype(ImageFont.load_default().path, size=20)
     except Exception:
-        font = ImageFont.truetype("browser/playwright/Arial.ttf", size=20)
+        font = ImageFont.load_default()
 
     placed_label_boxes = []
     draw = ImageDraw.Draw(overlay)

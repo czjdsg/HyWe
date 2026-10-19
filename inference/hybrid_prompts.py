@@ -1,3 +1,4 @@
+import os
 import copy
 import json
 
@@ -188,17 +189,15 @@ TOOLS = [
     {
         "type": "function",
         "function": {
-            "name": "fill",
-            "description": "Click at (x, y) to focus an input/textarea, then type the given text. Set submit=true to press Enter at the end.",
+            "name": "type",
+            "description": "Type the given text into the currently-focused element (an input/textarea already focused by a preceding click or by page autofocus). Set submit=true to press Enter at the end.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "x": {"type": "number", "description": "X coordinate of the target element."},
-                    "y": {"type": "number", "description": "Y coordinate of the target element."},
                     "text": {"type": "string", "description": "Text to type."},
                     "submit": {"type": "boolean", "description": "Press Enter after typing. Defaults to false."},
                 },
-                "required": ["x", "y", "text"],
+                "required": ["text"],
             },
         },
     },
@@ -368,19 +367,19 @@ SWITCH_TOOL = {
         "name": "switch",
         "description": (
             "Hand off control to the OTHER path (search-based <-> operation-based). "
-            "Consumes this turn -- NO browser action is performed. Use ONLY when the other path is clearly required for the next remaining_subgoal. "
+            "Consumes this turn -- NO browser action is performed. Use ONLY when the other path is clearly required for the next sub-goal. "
             "Do NOT call switch as default exploration. Do NOT call switch just because you are uncertain. "
-            "cumulative_progress and remaining_subgoals carry across the switch verbatim, so DO NOT restate context in the reason."
+            "Takes no arguments: put why you are switching in your reasoning, not in a parameter."
         ),
+        # 参数表**是空的**。历史:训练数据里 2,573 个 switch 调用全是 {},提示词散文也一直写着
+        # "it takes no arguments";但 schema 里曾经留着一个可选的 `reason` 属性 ——
+        # 只把它移出 required 不够,模型看见 properties 里列着这个字段(还带用途描述)就会填,
+        # 实测 2026-09-10 的三轮共 358 次 switch **全部**带 reason,一次例外都没有。
+        # schema 比散文硬,矛盾时模型跟 schema。所以整个属性删掉,与提示词和训练数据对齐。
         "parameters": {
             "type": "object",
-            "properties": {
-                "reason": {
-                    "type": "string",
-                    "description": "One sentence: why the current path is stuck or why the other path is faster for the next remaining_subgoal.",
-                },
-            },
-            "required": ["reason"],
+            "properties": {},
+            "required": [],
         },
     },
 }
@@ -397,7 +396,7 @@ You can solve:
 - mixed tasks that require both reasoning and interaction
 
 Coordinate-based interaction:
-- For click, double_click, hover, fill, select_option, scroll, and drag: read the screenshot and output (x, y) coordinates pointing to the visual center of the target element (drag uses from_x/from_y/to_x/to_y).
+- For click, double_click, hover, select_option, scroll, and drag: read the screenshot and output (x, y) coordinates pointing to the visual center of the target element (drag uses from_x/from_y/to_x/to_y).
 
 Action descriptions are mandatory:
 - Every tool_call you emit MUST be paired with a short `action_description` (5-15 words) naming the visible target element and what you expect to happen (e.g. "Click the red 'GET MY RATES' button at the top-right of the page" or "Type 'home workout' in the search box and submit"). The description is appended to the action history; future turns and reviewers use it to detect loops and recover from mistakes.
@@ -409,12 +408,12 @@ Before each step, decide whether to keep or switch the current route:
 
 Path semantics:
 - The search-based path is for efficient information gathering: search, scholar, and visit.
-- The operation-based path is for browser interaction that reveals deeper webpage information unavailable through search-based tools: goto, new_tab, hover, click, double_click, fill, select_option, scroll, drag, wait, go_back, press_key, switch_tab, and close_tab.
+- The operation-based path is for browser interaction that reveals deeper webpage information unavailable through search-based tools: goto, new_tab, hover, click, double_click, type, select_option, scroll, drag, wait, go_back, press_key, switch_tab, and close_tab.
 - code_sandbox is path-neutral. You may use it from either path for calculations, parsing, data processing, attachment inspection, or validation. Using code_sandbox alone does not mean the path switched.
 
 After choosing a path, the next tool must obey that path:
 - If you choose search-based, use only search, scholar, or visit, unless using code_sandbox for computation/parsing/validation.
-- If you choose operation-based, use only goto, new_tab, hover, click, double_click, fill, select_option, scroll, drag, wait, go_back, press_key, switch_tab, or close_tab, unless using code_sandbox for computation/parsing/validation.
+- If you choose operation-based, use only goto, new_tab, hover, click, double_click, type, select_option, scroll, drag, wait, go_back, press_key, switch_tab, or close_tab, unless using code_sandbox for computation/parsing/validation.
 - If you choose completed, do not call a tool; provide the answer.
 - Re-evaluate whether to keep or switch paths at every step. Do not lock yourself into one route.
 
@@ -432,7 +431,7 @@ Tool semantics matter:
 - code_sandbox runs small self-contained code for computation, data processing, parsing, or code validation and does not change browser state. Task-provided attachment files are automatically available in the sandbox under the sandbox paths shown in the task; read those files directly instead of inlining file contents into the tool_call JSON.
 - goto opens a URL in the active tab when you want page state, screenshots, or future interaction.
 - new_tab opens a URL in a new tab and switches to it; use it when you want to keep the current page alive for later switch_tab.
-- hover, click, double_click, fill, select_option, scroll, drag, wait, go_back, and press_key operate on the current browser page using (x, y) coordinates (where applicable).
+- hover, click, double_click, type, select_option, scroll, drag, wait, go_back, and press_key operate on the current browser page using (x, y) coordinates (where applicable).
 - drag presses at (from_x, from_y), holds, moves to (to_x, to_y), then releases — use it for scrollbar dragging, slider/range inputs, list/card reordering, map panning, and drag-and-drop file upload areas.
 - For native <select> dropdowns there is no dedicated tool: click the dropdown to open it, then click the option, or use press_key with ArrowDown/Enter.
 - switch_tab and close_tab manage the open browser tabs. The full tab list is shown in the Current Browser State block on every turn, so you do not need a separate listing tool.
@@ -443,7 +442,7 @@ webpage and for collecting information that is only revealed through browser int
 code_sandbox is path-neutral and does not interact with the browser. search, scholar, and visit also do not interact with the browser; browser-operation tools do.
 Therefore, when the
 browser is still blank and no page screenshot is provided, no page-interaction tool is valid.
-Use goto or new_tab first. Do not use hover, click, double_click, fill, select_option, scroll, drag, wait, go_back, or press_key
+Use goto or new_tab first. Do not use hover, click, double_click, type, select_option, scroll, drag, wait, go_back, or press_key
 until the browser provides a current page screenshot.
 switch_tab and close_tab may be used at any time, but are only useful when more
 than one tab is open. The list of open tabs is shown in the Current Browser State block.
@@ -474,7 +473,7 @@ Use the operation-based path when the next progress requires browser interaction
 - new_tab
 - hover
 - click
-- fill
+- type
 - scroll
 - wait
 - go_back
@@ -514,26 +513,24 @@ Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
   "task_analysis":          "<Analyze the task and identify concrete sub-goals.>",
-  "remaining_subgoals":     ["<atomic open item still required to finish the task>", "..."],
   "path_switch":            null | {{"to": "search-based" | "operation-based", "reason": "<short>"}},
-  "next_action_rationale":  "<one sentence: WHY the chosen tool will close some remaining_subgoal>",
+  "next_action_rationale":  "<first person, a few sentences: the key reasoning for this first action — the important considerations and WHY this specific tool_call is the right opening move given the task decomposition>",
   "tool_call":              {{"name": "<tool name from the schemas above>", "arguments": {{...}}}},
   "action_description":     "<5-15 word short description of the action: name the visible target element and expected outcome>"
 }}
 
 Field rules:
 - `task_analysis` is a paragraph decomposing the task into sub-goals. Required and non-empty.
-- `remaining_subgoals` is a JSON array of strings listing all open items.
 - `path_switch` is null when keeping the current path. Set it when switching.
-- `next_action_rationale` is a non-empty one-sentence string stating why the chosen tool advances a remaining_subgoal.
+- `next_action_rationale` is a non-empty first-person string (a few sentences) giving the key reasoning for why the chosen tool advances the task.
 - `tool_call` is required — choose the first tool to invoke based on the task analysis.
 - `action_description` is a non-empty string (5-15 words).
 - `tool_call.arguments` must use the exact English argument keys / enum values from the tool schema.
 
 Rules:
-- Once a path is selected, use only tools from that path: search/scholar/visit for search-based, or goto/new_tab/hover/click/fill/scroll/drag/wait/go_back/press_key/switch_tab/close_tab for operation-based. code_sandbox is path-neutral.
+- Once a path is selected, use only tools from that path: search/scholar/visit for search-based, or goto/new_tab/hover/click/type/scroll/drag/wait/go_back/press_key/switch_tab/close_tab for operation-based. code_sandbox is path-neutral.
 - Use exactly one tool call.
-- For hover, click, fill, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot.
+- For hover, click, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot. type takes no coordinates (it types into the currently-focused element).
 """.strip()
 
 
@@ -554,18 +551,16 @@ Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
   "task_analysis":          "<Analyze the task and identify concrete sub-goals.>",
-  "remaining_subgoals":     ["<atomic open item still required to finish the task>", "..."],
   "path_switch":            null | {{"to": "search-based" | "operation-based", "reason": "<short>"}},
-  "next_action_rationale":  "<one sentence: WHY the chosen tool will close some remaining_subgoal>",
+  "next_action_rationale":  "<first person, a few sentences: the key reasoning for this first action — the important considerations and WHY this specific tool_call is the right opening move given the task decomposition>",
   "tool_call":              {{"name": "<tool name from the schemas above>", "arguments": {{...}}}},
   "action_description":     "<5-15 word short description of the action: name the target and expected outcome>"
 }}
 
 Field rules:
 - `task_analysis` is a paragraph decomposing the task into sub-goals. Required and non-empty.
-- `remaining_subgoals` is a JSON array of strings listing all open items.
 - `path_switch` is null when keeping the current path. Set it when switching.
-- `next_action_rationale` is a non-empty one-sentence string stating why the chosen tool advances a remaining_subgoal.
+- `next_action_rationale` is a non-empty first-person string (a few sentences) giving the key reasoning for why the chosen tool advances the task.
 - `tool_call` is required — choose the first tool to invoke based on the task analysis.
 - `action_description` is a non-empty string (5-15 words).
 - `tool_call.arguments` must use the exact English argument keys / enum values from the tool schema.
@@ -604,16 +599,15 @@ The browser does not currently have a useful loaded page. The current page is bl
 ## Required Output Format
 Return EXACTLY ONE top-level JSON object as your entire response. No XML tags. No markdown fences. No prose outside the JSON.
 
-Generate the keys in the order shown — `this_turn` is your fresh analysis of THIS turn's observation, and `cumulative_progress` is built by READING the prior turn's `cumulative_progress` (from "Previous Thought" above) and walking through it POINT BY POINT — explicitly KEEPING items still true, MODIFYING/CORRECTING items now refined or superseded (state both old and new), ADDING new items contributed by `this_turn`, and DELETING items no longer true. Format is flexible prose or short bullet-like lines.
+Generate the keys in the order shown — `this_turn` is your fresh analysis of THIS turn's observation, and `cumulative_progress` is a CONCISE re-synthesis of the prior `cumulative_progress` (from the Previous Thought above) merged with `this_turn`: keep what is still true, correct what changed, add what is new, drop what is contradicted, and collapse dead-ends into one-line notes — rewritten compactly in your own words, never copied verbatim or grown unbounded.
 
 Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
-  "this_turn":              "<one paragraph: what THIS turn newly contributed. May be a fact surfaced from the latest tool result, a state change just produced (e.g. \"clicked 'Add to bag', cart count 0→1\", \"page navigated from /search to /product/123\"), a confirmation, or a failure. Be specific.>",
-  "cumulative_progress":    "<RUNNING summary of EVERYTHING accomplished so far that is relevant to the task. Carried across turns. ONLY write progress that has actually been made (facts confirmed, values collected, URLs identified, state changes that took effect). DO NOT write what is still missing, what remains to do, blockers, plans, or guesses — those belong in `remaining_subgoals` or `this_turn`, not here. Be COMPREHENSIVE — capture every task-relevant concrete fact and every confirmed state change, including small intermediate wins (filter applied successfully, correct page reached, dropdown configured, login completed). Build it by taking the prior turn's `cumulative_progress` (from \"Previous Thought\") and walking through it POINT BY POINT against `this_turn`: KEEP each prior item that is still true; MODIFY/CORRECT items now refined or superseded (state both the old and the new value); ADD any NEW items confirmed in `this_turn`; DELETE items the new evidence shows were wrong. Cover BOTH information progress (concrete facts/values/URLs collected) AND operation progress (cart additions, sign-ins, forms submitted, filters applied, bookings confirmed, navigation milestones reached). Each entry must describe something already done, not something pending.>",
-  "remaining_subgoals":     ["<atomic open item still required to finish the task. Can be a fact to find OR a state target not yet reached (e.g. \"item still missing from cart\", \"booking form not yet submitted\")>", "..."],
+  "this_turn":              "<one paragraph, first person: the specific facts/values/state the LATEST observation newly surfaced (names, numbers, URLs, quotes, or a state change like clicked Add-to-bag, cart 0→1), plus my read of them — grounded in the observation. Be specific; a confirmation or a failure also counts.>",
+  "cumulative_progress":    "<A CONCISE, RE-SYNTHESIZED running record of what I have actually CONFIRMED/accomplished so far (facts/values/URLs collected AND state changes that took effect), first person — a SYNTHESIS, NOT an append-only log. Keep it CONCISE; never let it grow unbounded as the trajectory lengthens. Build it each turn by REWRITING the prior `cumulative_progress` (from the Previous Thought above) together with `this_turn` in my own words: MERGE related items, KEEP what is still true, MODIFY/CORRECT what is refined or superseded, ADD what `this_turn` confirmed, DELETE what is now contradicted — do NOT copy the prior version verbatim. COLLAPSE every exhausted / failed / dead-end avenue into a SINGLE one-line note instead of keeping its full detail. ONLY confirmed progress — NO open items, plans, blockers, or guesses (those go in `this_turn`). Cover BOTH information progress (facts/values/URLs) AND operation progress (cart additions, sign-ins, forms submitted, filters applied, navigation milestones). SOLE source for the final answer, so retain every answer-relevant fact compactly.>",
   "path_switch":            null | {{"to": "search-based" | "operation-based", "reason": "<short>"}},
-  "next_action_rationale":  "<one sentence: WHY the chosen tool will close some remaining_subgoal>",
+  "next_action_rationale":  "<first person, a few sentences: distill the key reasoning for THIS action by REFLECTING across the Recent Actions (what I have already tried and where it yielded results or dead-ended), the previous tool result, and my current `cumulative_progress` — so this move builds on the history instead of repeating it — then state what the observation implied, any reflection on prior calls/loops, and WHY this specific tool_call is the right next move to advance the task>",
   "tool_call":              {{"name": "<tool name from the schemas above>", "arguments": {{...}}}} OR null,
   "action_description":     "<5-15 word short description of the action: name the visible target element and the expected outcome. REQUIRED when tool_call is non-null; use null when answer is set instead.>",
   "answer":                 null OR "<final answer string if you are confident the task is solved/blocked and want to terminate THIS TURN early>"
@@ -621,7 +615,6 @@ Schema (every required key MUST be present; extra keys are forbidden):
 
 Field rules:
 - `this_turn` and `cumulative_progress` are paragraph-style strings (free-form prose, may include short bullet-like lines). Both are required and non-empty.
-- `remaining_subgoals` is a JSON array of strings (may be the empty array `[]` only when the task is fully solved).
 - `path_switch` is null when keeping the current path. Set it to `{{"to": "search-based" | "operation-based", "reason": "<short>"}}` only when actually switching paths this turn. Do NOT default to a non-null value if you're staying.
 - EXACTLY ONE of `tool_call` (object) and `answer` (non-empty string) must be non-null; the other MUST be null.
 - Set `answer` (and `tool_call`=null) ONLY when you are confident the task is fully solved (or definitively blocked) and want to terminate the trajectory THIS turn. Otherwise, set `tool_call` (the next tool to invoke) and `answer`=null.
@@ -636,9 +629,9 @@ Rules:
 - Select operation-based if you already know a page and need future browser interaction or page-state changes; since the browser is blank, the operation-based tool must be goto first.
 - Use code_sandbox from either path only for calculation, parsing, data processing, attachment inspection, or code validation.
 - search, scholar, visit, and code_sandbox do not interact with the browser. Browser operations require a loaded page with a current screenshot.
-- Since the browser is blank, do not use hover, click, double_click, fill, select_option, scroll, drag, wait, go_back, or press_key. Use goto or new_tab first if page interaction is needed. (switch_tab and close_tab remain available but are only useful when more than one tab is open; the open-tab list is shown in the Current Browser State block.)
+- Since the browser is blank, do not use hover, click, double_click, type, select_option, scroll, drag, wait, go_back, or press_key. Use goto or new_tab first if page interaction is needed. (switch_tab and close_tab remain available but are only useful when more than one tab is open; the open-tab list is shown in the Current Browser State block.)
 - Use exactly one tool call if not answering.
-- For hover, click, fill, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot. drag takes (from_x, from_y, to_x, to_y).
+- For hover, click, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot. type takes no coordinates (it types into the currently-focused element). drag takes (from_x, from_y, to_x, to_y).
 """.strip()
 
 
@@ -671,16 +664,15 @@ TURN_USER_PROMPT = """## Current Date
 ## Required Output Format
 Return EXACTLY ONE top-level JSON object as your entire response. No XML tags. No markdown fences. No prose outside the JSON.
 
-Generate the keys in the order shown — `this_turn` is your fresh analysis of THIS turn's observation, and `cumulative_progress` is built by READING the prior turn's `cumulative_progress` (from "Previous Thought" above) and walking through it POINT BY POINT — explicitly KEEPING items still true, MODIFYING/CORRECTING items now refined or superseded (state both old and new), ADDING new items contributed by `this_turn`, and DELETING items no longer true. Format is flexible prose or short bullet-like lines.
+Generate the keys in the order shown — `this_turn` is your fresh analysis of THIS turn's observation, and `cumulative_progress` is a CONCISE re-synthesis of the prior `cumulative_progress` (from the Previous Thought above) merged with `this_turn`: keep what is still true, correct what changed, add what is new, drop what is contradicted, and collapse dead-ends into one-line notes — rewritten compactly in your own words, never copied verbatim or grown unbounded.
 
 Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
-  "this_turn":              "<one paragraph: what THIS turn newly contributed. May be a fact surfaced from the latest tool result, a state change just produced (e.g. \"clicked 'Add to bag', cart count 0→1\", \"page navigated from /search to /product/123\"), a confirmation, or a failure. Be specific.>",
-  "cumulative_progress":    "<RUNNING summary of EVERYTHING accomplished so far that is relevant to the task. Carried across turns. ONLY write progress that has actually been made (facts confirmed, values collected, URLs identified, state changes that took effect). DO NOT write what is still missing, what remains to do, blockers, plans, or guesses — those belong in `remaining_subgoals` or `this_turn`, not here. Be COMPREHENSIVE — capture every task-relevant concrete fact and every confirmed state change, including small intermediate wins (filter applied successfully, correct page reached, dropdown configured, login completed). Build it by taking the prior turn's `cumulative_progress` (from \"Previous Thought\") and walking through it POINT BY POINT against `this_turn`: KEEP each prior item that is still true; MODIFY/CORRECT items now refined or superseded (state both the old and the new value); ADD any NEW items confirmed in `this_turn`; DELETE items the new evidence shows were wrong. Cover BOTH information progress (concrete facts/values/URLs collected) AND operation progress (cart additions, sign-ins, forms submitted, filters applied, bookings confirmed, navigation milestones reached). Each entry must describe something already done, not something pending.>",
-  "remaining_subgoals":     ["<atomic open item still required to finish the task. Can be a fact to find OR a state target not yet reached (e.g. \"item still missing from cart\", \"booking form not yet submitted\")>", "..."],
+  "this_turn":              "<one paragraph, first person: the specific facts/values/state the LATEST observation newly surfaced (names, numbers, URLs, quotes, or a state change like clicked Add-to-bag, cart 0→1), plus my read of them — grounded in the observation. Be specific; a confirmation or a failure also counts.>",
+  "cumulative_progress":    "<A CONCISE, RE-SYNTHESIZED running record of what I have actually CONFIRMED/accomplished so far (facts/values/URLs collected AND state changes that took effect), first person — a SYNTHESIS, NOT an append-only log. Keep it CONCISE; never let it grow unbounded as the trajectory lengthens. Build it each turn by REWRITING the prior `cumulative_progress` (from the Previous Thought above) together with `this_turn` in my own words: MERGE related items, KEEP what is still true, MODIFY/CORRECT what is refined or superseded, ADD what `this_turn` confirmed, DELETE what is now contradicted — do NOT copy the prior version verbatim. COLLAPSE every exhausted / failed / dead-end avenue into a SINGLE one-line note instead of keeping its full detail. ONLY confirmed progress — NO open items, plans, blockers, or guesses (those go in `this_turn`). Cover BOTH information progress (facts/values/URLs) AND operation progress (cart additions, sign-ins, forms submitted, filters applied, navigation milestones). SOLE source for the final answer, so retain every answer-relevant fact compactly.>",
   "path_switch":            null | {{"to": "search-based" | "operation-based", "reason": "<short>"}},
-  "next_action_rationale":  "<one sentence: WHY the chosen tool will close some remaining_subgoal>",
+  "next_action_rationale":  "<first person, a few sentences: distill the key reasoning for THIS action by REFLECTING across the Recent Actions (what I have already tried and where it yielded results or dead-ended), the previous tool result, and my current `cumulative_progress` — so this move builds on the history instead of repeating it — then state what the observation implied, any reflection on prior calls/loops, and WHY this specific tool_call is the right next move to advance the task>",
   "tool_call":              {{"name": "<tool name from the schemas above>", "arguments": {{...}}}} OR null,
   "action_description":     "<5-15 word short description of the action: name the visible target element and the expected outcome. REQUIRED when tool_call is non-null; use null when answer is set instead.>",
   "answer":                 null OR "<final answer string if you are confident the task is solved/blocked and want to terminate THIS TURN early>"
@@ -688,7 +680,6 @@ Schema (every required key MUST be present; extra keys are forbidden):
 
 Field rules:
 - `this_turn` and `cumulative_progress` are paragraph-style strings (free-form prose, may include short bullet-like lines). Both are required and non-empty.
-- `remaining_subgoals` is a JSON array of strings (may be the empty array `[]` only when the task is fully solved).
 - `path_switch` is null when keeping the current path. Set it to `{{"to": "search-based" | "operation-based", "reason": "<short>"}}` only when actually switching paths this turn. Do NOT default to a non-null value if you're staying.
 - EXACTLY ONE of `tool_call` (object) and `answer` (non-empty string) must be non-null; the other MUST be null.
 - Set `answer` (and `tool_call`=null) ONLY when you are confident the task is fully solved (or definitively blocked) and want to terminate the trajectory THIS turn. Otherwise, set `tool_call` (the next tool to invoke) and `answer`=null.
@@ -698,13 +689,13 @@ Field rules:
 
 Rules:
 - Re-evaluate whether to keep or switch paths every step.
-- Once a path is selected, use only tools from that path: search/scholar/visit for search-based, or goto/new_tab/hover/click/fill/scroll/drag/wait/go_back/press_key/switch_tab/close_tab for operation-based. code_sandbox is path-neutral and may be used from either path.
+- Once a path is selected, use only tools from that path: search/scholar/visit for search-based, or goto/new_tab/hover/click/type/scroll/drag/wait/go_back/press_key/switch_tab/close_tab for operation-based. code_sandbox is path-neutral and may be used from either path.
 - Use exactly one tool call if not answering.
 - Use search-based when efficient information gathering is needed.
 - Use operation-based when browser interaction is needed to reveal information that search-based tools cannot obtain.
 - visit does not change browser state; use goto when you need browser interaction on a URL.
 - Do not keep retrying the same failed action without a real change in strategy.
-- For hover, click, fill, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot. drag takes (from_x, from_y, to_x, to_y).
+- For hover, click, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot. type takes no coordinates (it types into the currently-focused element). drag takes (from_x, from_y, to_x, to_y).
 """.strip()
 
 
@@ -735,21 +726,19 @@ You have reached the final step budget. You are not allowed to take more tool ac
 ## Required Output Format
 This is the FINAL turn. Return EXACTLY ONE top-level JSON object as your entire response. No XML tags. No markdown fences. No prose outside the JSON.
 
-Generate the keys in the order shown — `this_turn` is your fresh analysis; `cumulative_progress` is built by walking the prior `cumulative_progress` POINT BY POINT (keep / modify / add / delete) so the result is a clean updated running KB, then derive `answer_plan` and the final `answer`.
+Generate the keys in the order shown — `this_turn` is your fresh analysis; `cumulative_progress` is a CONCISE re-synthesis of the prior `cumulative_progress` merged with `this_turn` (keep / correct / add / drop / collapse dead-ends, rewritten compactly), then derive `answer_plan` and the final `answer`.
 
 Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
-  "this_turn":            "<one paragraph: what the final turn newly shows. Could be a final value confirmation, a final state observation, or a blocker preventing completion.>",
-  "cumulative_progress":  "<RUNNING summary of EVERYTHING accomplished so far that is relevant to the task. ONLY write progress that has actually been made (facts confirmed, values collected, URLs identified, state changes that took effect). DO NOT write what is still missing, what remains, blockers, plans, or guesses — those belong elsewhere. Be COMPREHENSIVE — capture every task-relevant concrete fact and every confirmed state change, including small intermediate wins. Build it by taking the prior turn's `cumulative_progress` and walking through it POINT BY POINT against `this_turn`: KEEP items still true; MODIFY/CORRECT items now refined or superseded (state both old and new); ADD new items confirmed in `this_turn`; DELETE items the new evidence shows were wrong. This is your authoritative record of what was accomplished and what `answer` will be composed from.>",
-  "remaining_subgoals":   ["<sub-goal NOT met; describe the blocker. Use [] if the task is fully solved.>", "..."],
+  "this_turn":            "<one paragraph, first person: the specific facts/values/state the LATEST observation newly surfaced (names, numbers, URLs, quotes, or a state change like clicked Add-to-bag, cart 0→1), plus my read of them — grounded in the observation. Be specific; a confirmation or a failure also counts.>",
+  "cumulative_progress":  "<The final knowledge base: a CONCISE synthesis of every fact/state the answer is built from — complete enough to FULLY support `answer`, but RE-SYNTHESIZED and compact (merge related items; collapse each exhausted/dead-end avenue to one line), NOT an append-only dump of everything seen. Built from the prior `cumulative_progress` + `this_turn`. SOLE source for `answer`.>",
   "answer_plan":          "<one or two sentences: how the answer string is composed from cumulative_progress; explicitly call out any uncertainty or unresolved blocker>",
   "answer":               "<the final answer string. For information-seeking tasks, give the concrete answer. For operation tasks, describe the completed result/state (or the blocker if it was not reached).>"
 }}
 
 Field rules:
 - `this_turn`, `cumulative_progress`, `answer_plan`, `answer` are all required non-empty strings.
-- `remaining_subgoals` is a JSON array of strings. Use `[]` when the task is fully solved.
 - Do NOT include a `tool_call` field on the final turn.
 
 """.strip()
@@ -786,27 +775,31 @@ You have reached the final step budget. You are not allowed to take more tool ac
 ## Required Output Format
 This is the FINAL turn. Return EXACTLY ONE top-level JSON object as your entire response. No XML tags. No markdown fences. No prose outside the JSON.
 
-Generate the keys in the order shown — `this_turn` is your fresh analysis; `cumulative_progress` is built by walking the prior `cumulative_progress` POINT BY POINT (keep / modify / add / delete) so the result is a clean updated running KB, then derive `answer_plan` and the final `answer`.
+Generate the keys in the order shown — `this_turn` is your fresh analysis; `cumulative_progress` is a CONCISE re-synthesis of the prior `cumulative_progress` merged with `this_turn` (keep / correct / add / drop / collapse dead-ends, rewritten compactly), then derive `answer_plan` and the final `answer`.
 
 Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
-  "this_turn":            "<one paragraph: what the final turn newly shows. Could be a final value confirmation, a final state observation, or a blocker preventing completion.>",
-  "cumulative_progress":  "<RUNNING summary of EVERYTHING accomplished so far that is relevant to the task. ONLY write progress that has actually been made (facts confirmed, values collected, URLs identified, state changes that took effect). DO NOT write what is still missing, what remains, blockers, plans, or guesses — those belong elsewhere. Be COMPREHENSIVE — capture every task-relevant concrete fact and every confirmed state change, including small intermediate wins. Build it by taking the prior turn's `cumulative_progress` and walking through it POINT BY POINT against `this_turn`: KEEP items still true; MODIFY/CORRECT items now refined or superseded (state both old and new); ADD new items confirmed in `this_turn`; DELETE items the new evidence shows were wrong. This is your authoritative record of what was accomplished and what `answer` will be composed from.>",
-  "remaining_subgoals":   ["<sub-goal NOT met; describe the blocker. Use [] if the task is fully solved.>", "..."],
+  "this_turn":            "<one paragraph, first person: the specific facts/values/state the LATEST observation newly surfaced (names, numbers, URLs, quotes, or a state change like clicked Add-to-bag, cart 0→1), plus my read of them — grounded in the observation. Be specific; a confirmation or a failure also counts.>",
+  "cumulative_progress":  "<The final knowledge base: a CONCISE synthesis of every fact/state the answer is built from — complete enough to FULLY support `answer`, but RE-SYNTHESIZED and compact (merge related items; collapse each exhausted/dead-end avenue to one line), NOT an append-only dump of everything seen. Built from the prior `cumulative_progress` + `this_turn`. SOLE source for `answer`.>",
   "answer_plan":          "<one or two sentences: how the answer string is composed from cumulative_progress; explicitly call out any uncertainty or unresolved blocker>",
   "answer":               "<the final answer string. For information-seeking tasks, give the concrete answer. For operation tasks, describe the completed result/state (or the blocker if it was not reached).>"
 }}
 
 Field rules:
 - `this_turn`, `cumulative_progress`, `answer_plan`, `answer` are all required non-empty strings.
-- `remaining_subgoals` is a JSON array of strings. Use `[]` when the task is fully solved.
 - Do NOT include a `tool_call` field on the final turn.
 
 """.strip()
 
 
 AGENT_MODE_TOOL_NAMES = {
+    "hybrid_react_v2": [   # v2:实际按 S/O 分侧,这里只是兜底全集
+        "search", "scholar", "visit", "code_sandbox", "switch",
+        "goto", "new_tab", "hover", "click", "double_click", "type",
+        "select_option", "scroll", "drag", "wait", "go_back", "press_key",
+        "switch_tab", "close_tab",
+    ],
     "hybrid": [
         "search",
         "scholar",
@@ -815,7 +808,7 @@ AGENT_MODE_TOOL_NAMES = {
         "click",
         "double_click",
         "hover",
-        "fill",
+        "type",
         "select_option",
         "scroll",
         "drag",
@@ -833,7 +826,7 @@ AGENT_MODE_TOOL_NAMES = {
         "click",
         "double_click",
         "hover",
-        "fill",
+        "type",
         "select_option",
         "scroll",
         "drag",
@@ -870,7 +863,7 @@ ROUTED_SIDE_TOOL_NAMES = {
         "click",
         "double_click",
         "hover",
-        "fill",
+        "type",
         "select_option",
         "scroll",
         "drag",
@@ -892,7 +885,7 @@ GUIDED_ROUTED_SIDE_TOOL_NAMES = {
         "click",
         "double_click",
         "hover",
-        "fill",
+        "type",
         "select_option",
         "scroll",
         "drag",
@@ -908,6 +901,8 @@ GUIDED_ROUTED_SIDE_TOOL_NAMES = {
 
 def normalize_agent_mode(agent_mode: str | None) -> str:
     mode = (agent_mode or "hybrid").strip().lower()
+    if mode == "hybrid_react_v2":          # v2:朴素 ReAct + S/O 双端
+        return mode
     if mode not in AGENT_MODE_TOOL_NAMES:
         return "hybrid"
     return mode
@@ -1003,8 +998,72 @@ def get_tool_str(
     )
 
 
+def v2_locked_side() -> str | None:
+    """HYBRID_V2_LOCK_SIDE=S|O:在 **ReAct v2 scaffold 下**锁死单侧、不给 switch 工具。
+
+    为什么不用 --agent-mode operation/search:那两个模式走的是**旧 scaffold**
+    (OPERATION_/SEARCH_SYSTEM_PROMPT_TEMPLATE),提示词结构、历史渲染、收口方式都
+    和 v2 不同。要跟 hybrid_react_v2 的结果对比,单侧对照必须跑在同一套 scaffold 上,
+    否则量到的差异里混着 scaffold 差异。
+    """
+    v = (os.environ.get("HYBRID_V2_LOCK_SIDE") or "").strip().upper()
+    return v if v in {"S", "O"} else None
+
+
+def v2_disabled_tools() -> set[str]:
+    """HYBRID_V2_DISABLE_TOOLS=code_sandbox[,…]:在 ReAct v2 下整个拿掉某些工具。
+
+    insta 单侧对照(2026-09-15)用:S 侧的 code_sandbox 能联网、能发 POST —— 实测 agent 用它
+    抓整页 HTML、下载 JS 包、反推并调用站点后端接口(hoyer.de 的报价计算器 API、bixi 的 GBFS),
+    把"只有浏览器交互才能拿到"的状态绕过去,S 侧就不再是"搜索 + 读页面"。
+    拿掉的工具:不进 schema、不进提示词(react_v2_prompts.system_prompt 同步删掉那几行)、
+    调用时按"不可用工具"拒绝。不设这个变量时行为完全不变。
+    """
+    return {t.strip() for t in (os.environ.get("HYBRID_V2_DISABLE_TOOLS") or "").split(",") if t.strip()}
+
+
+def v2_flat() -> bool:
+    """HYBRID_V2_FLAT=1:在 **ReAct v2 scaffold 下**把 S+O 工具摊平 —— 全量工具、不分模式、统一一版提示词。
+
+    论文消融用(2026-09-24):回答"分模式 + switch 切换"是否优于"所有工具摊平在一起"。
+    与默认 hybrid_react_v2 / LOCK_SIDE 单侧对照跑在同一套 scaffold 上(输出格式、解析、收口、
+    折叠、撞顶重跑全都一样),只差三处:
+      * 工具集 = S 侧 ∪ O 侧,去掉 switch(仍扣掉 HYBRID_V2_DISABLE_TOOLS);
+      * 系统提示词换成 react_v2_prompts 里的统一版,整份不出现 mode / side / switch / path 措辞;
+      * 每次工具调用按工具名分派到 S / O 执行器(v2_flat_side_of)。active_mode 只跟着
+        "这一步用的是哪一侧"走,用于观测渲染(浏览器动作带截图、搜索类纯文本)和 records 统计,
+        不再是模型可见的状态;历史也不再按侧切段(react_v2.ReactHistory.flat)。
+    不能与 HYBRID_V2_LOCK_SIDE 同时设(runner 启动时报错)。不设这个变量时行为完全不变。
+    """
+    return (os.environ.get("HYBRID_V2_FLAT") or "").strip() == "1"
+
+
+def v2_flat_side_of(tool_name: str | None, current_side: str | None) -> str:
+    """FLAT 下一次工具调用归哪一侧(只用于执行分派 / 观测渲染 / records 统计)。
+
+    search/scholar/visit -> S;浏览器动作 -> O;两侧共用的 code_sandbox 沿用当前侧 ——
+    与默认 v2 一致:它在哪一侧都能调、调了也不换侧,所以不该算一次"侧别变化";
+    在 O 侧调时照旧带动作后截图,在 S 侧调时是纯文本。
+    """
+    s_tools = set(ROUTED_SIDE_TOOL_NAMES["S"]) - {"switch"}
+    o_tools = set(ROUTED_SIDE_TOOL_NAMES["O"]) - {"switch"}
+    if tool_name in s_tools - o_tools:
+        return "S"
+    if tool_name in o_tools - s_tools:
+        return "O"
+    return current_side if current_side in {"S", "O"} else "S"
+
+
 def get_allowed_tool_names(agent_mode: str | None, active_mode: str | None = None) -> set[str]:
     mode = normalize_agent_mode(agent_mode)
+    if mode == "hybrid_react_v2":          # v2 与 routed 同工具集,只是 scaffold 不同
+        if v2_flat():                       # FLAT 消融:两侧并集,没有 switch(见 v2_flat)
+            return ((set(ROUTED_SIDE_TOOL_NAMES["S"]) | set(ROUTED_SIDE_TOOL_NAMES["O"]))
+                    - {"switch"} - v2_disabled_tools())
+        side = v2_locked_side()
+        if side:
+            return set(ROUTED_SIDE_TOOL_NAMES[side]) - {"switch"} - v2_disabled_tools()
+        return set(ROUTED_SIDE_TOOL_NAMES[normalize_routed_side(active_mode)]) - v2_disabled_tools()
     if mode == "hybrid_routed":
         return set(ROUTED_SIDE_TOOL_NAMES[normalize_routed_side(active_mode)])
     if mode == "hybrid_guided_routed":
@@ -1020,14 +1079,14 @@ Available tools and JSON schemas:
 You can solve tasks by operating the browser and by using code_sandbox for task-provided local attachments or computations. Use only the tools listed in the schemas above.
 
 Coordinate-based interaction:
-- For click, double_click, hover, fill, select_option, scroll, and drag: read the screenshot and output (x, y) coordinates pointing to the visual center of the target element (drag uses from_x/from_y/to_x/to_y).
+- For click, double_click, hover, select_option, scroll, and drag: read the screenshot and output (x, y) coordinates pointing to the visual center of the target element (drag uses from_x/from_y/to_x/to_y).
 
 Action descriptions are mandatory:
 - Every tool_call MUST include a short `action_description` (5-15 words) naming the visible target element and what you expect to happen. The description is appended to the action history and is the primary signal for loop detection.
 
 Working mechanism:
 - Use goto to navigate the current tab to a known URL; use new_tab to open a URL in a fresh tab and switch to it.
-- Use hover, click, double_click, fill, select_option, scroll, drag, wait, go_back, and press_key to change page state and inspect visible browser evidence.
+- Use hover, click, double_click, type, select_option, scroll, drag, wait, go_back, and press_key to change page state and inspect visible browser evidence.
 - For native <select> dropdowns there is no dedicated tool: click the dropdown to open it, then click the option, or use press_key with ArrowDown/Enter.
 - Use switch_tab and close_tab to manage browser tabs when popups, OAuth flows, or target=_blank links open additional tabs. The list of currently open tabs is shown in the Current Browser State block on every turn, so you do not need a separate listing tool.
 - Use code_sandbox only for calculations, parsing task-provided local attachment files, or validating data-derived results. It does not browse the web or change browser state.
@@ -1037,6 +1096,35 @@ Working mechanism:
 - Re-check the current URL, title, and screenshot after every browser action.
 - Before choosing the next tool, inspect Recent Actions. If the recent browser actions repeat without progress, treat it as a loop and try a different browser path or finish with the blocker.
 - In each report, synthesize webpage evidence, task information, and code_sandbox results when used; summarize progress; then plan the next browser or code_sandbox tool.
+
+Never invent an answer:
+- Every value you report MUST have been visible on a page you actually loaded in this session.
+  If the page failed to load, was blocked, or you never reached it, you have no value to report.
+- When that happens, say so plainly and stop. "The page did not load, so I could not obtain the
+  price" is a correct and useful answer. Producing a plausible-looking price you did not see is
+  the single worst thing you can do here — it is worse than failing, because it cannot be caught
+  by looking at whether you finished.
+- Do not fill gaps from prior knowledge about the site or product. Do not round, estimate, or
+  reconstruct a value you only partially saw.
+
+Overlays and gates before anything else:
+- Cookie/consent banners, newsletter modals, app-install interstitials and region pickers sit on top
+  of the page and swallow clicks. If one is present, dismiss or satisfy it FIRST — accept/reject
+  cookies, close the modal, pick a region — before attempting the real task. A click that "does
+  nothing" is usually a click landing on an invisible overlay.
+- If a control does not respond, do not repeat the same click. Check for an overlay, scroll the
+  element into view, or try the keyboard (press_key Tab/Enter, or type into the field directly).
+  Repeating an identical failing action more than twice never helps.
+
+Human verification:
+- If a CAPTCHA, bot check, or "verify you are human" screen appears, make one genuine attempt to
+  clear it: tick the checkbox, press and hold, or complete a simple slider or image prompt that is
+  actually shown on screen.
+- Attempt it at most twice. Do not reload repeatedly, do not guess alternate URLs to slip past it,
+  and do not keep clicking the same control hoping it changes.
+- If it still does not clear, stop there: answer with whatever was established before the block and
+  state plainly that human verification prevented the rest. A short honest stop is correct here; a
+  long loop against a bot check is not.
 
 Finish condition:
 - For tasks requiring website operation, finish when the requested page, result, form state, submitted state, or other target state is reached.
@@ -1102,7 +1190,7 @@ ROUTED_SWITCH_BLOCK_FOR_SEARCH = """
 
 ## When to call `switch`
 
-You are currently on the search-based path. Call `switch` when the operation-based path would be more effective for the next remaining_subgoal:
+You are currently on the search-based path. Call `switch` when the operation-based path would be more effective for the next sub-goal:
 
 **Information behind interaction:**
 - the needed information is only visible after applying filters, sorting, selecting dropdown options, clicking tabs, expanding sections, or navigating paginated/infinite-scroll lists -- search snippets and visit text cannot capture this dynamic content
@@ -1110,14 +1198,14 @@ You are currently on the search-based path. Call `switch` when the operation-bas
 - you already located the target URL, but extracting the answer requires clicking, scrolling, or filling a form (search snippets / visit text are insufficient)
 
 **State-changing actions:**
-- the next remaining_subgoal requires a browser action that changes site state (submit a form, add to cart, book, register, set a preference, complete a checkout flow)
+- the next sub-goal requires a browser action that changes site state (submit a form, add to cart, book, register, set a preference, complete a checkout flow)
 
 **Reactive recovery:**
 - recent search/visit actions are looping on the same query/URL without new progress, and a known page interaction would unblock the next step
 
-IMPORTANT: Do NOT set `answer` while `remaining_subgoals` still contains state-changing items (book, rent, buy, submit, register, add to cart, search on a specific site). You must call `switch` first to complete those subgoals via browser interaction, then answer only after ALL subgoals are resolved. Answering early with unfinished operation subgoals is incorrect — the task is not complete until the actions are performed, not just described.
+IMPORTANT: Do NOT set `answer` while state-changing sub-goals are still unresolved (book, rent, buy, submit, register, add to cart, search on a specific site). You must call `switch` first to complete those via browser interaction, then answer only after ALL of them are resolved. Answering early with unfinished operation work is incorrect — the task is not complete until the actions are performed, not just described.
 
-`cumulative_progress` and `remaining_subgoals` carry across the switch verbatim, so DO NOT restate task context inside the switch `reason`. One sentence stating why operation-based is needed is sufficient.
+`cumulative_progress` carries across the switch verbatim, so DO NOT restate task context inside the switch `reason`. One sentence stating why operation-based is needed is sufficient.
 """.strip()
 
 
@@ -1129,10 +1217,10 @@ ROUTED_SWITCH_BLOCK_FOR_OPERATION = """
 
 ## When to call `switch`
 
-You are currently on the operation-based path. Call `switch` when the search-based path would be more effective for the next remaining_subgoal:
+You are currently on the operation-based path. Call `switch` when the search-based path would be more effective for the next sub-goal:
 
 **Proactive efficiency (switch BEFORE getting stuck):**
-- the next remaining_subgoal is primarily about FINDING or VERIFYING information (a fact, a price, a date, a name, a reference) -- search/visit can extract this directly without navigating menus, filters, or pagination
+- the next sub-goal is primarily about FINDING or VERIFYING information (a fact, a price, a date, a name, a reference) -- search/visit can extract this directly without navigating menus, filters, or pagination
 - even though a URL is provided, the needed information can be read from that URL via `visit` (text extraction) rather than interacted with via browser -- switch to search and use visit(url=..., goal=...)
 - the task requires looking up information from an external source not on the current page
 
@@ -1144,9 +1232,9 @@ IMPORTANT: If the task goal is information-seeking (find, look up, check, compar
 
 Do NOT stay on the operation-based path just because a URL was provided. A URL is a starting point, not a commitment to browser interaction. If search/visit can answer the question without clicking, switch.
 
-IMPORTANT: Do NOT set `answer` while `remaining_subgoals` still contains information-gathering items that require search/visit (find a fact, look up a value, compare options). You must call `switch` first to gather that information, then answer only after ALL subgoals are resolved.
+IMPORTANT: Do NOT set `answer` while information-gathering sub-goals that require search/visit are still unresolved (find a fact, look up a value, compare options). You must call `switch` first to gather that information, then answer only after ALL of them are resolved.
 
-`cumulative_progress` and `remaining_subgoals` carry across the switch verbatim, so DO NOT restate task context inside the switch `reason`. One sentence stating why search-based is faster is sufficient.
+`cumulative_progress` carries across the switch verbatim, so DO NOT restate task context inside the switch `reason`. One sentence stating why search-based is faster is sufficient.
 """.strip()
 
 
@@ -1251,24 +1339,22 @@ Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
   "task_analysis":          "<Analyze the task: (1) identify all concrete sub-goals — facts to find, values to collect, actions to perform; (2) determine which sub-goals to tackle first based on the current browser state.>",
-  "remaining_subgoals":     ["<atomic open item still required to finish the task>", "..."],
-  "next_action_rationale":  "<one sentence: WHY the chosen tool will close some remaining_subgoal>",
+  "next_action_rationale":  "<first person, a few sentences: the key reasoning for this first action — the important considerations and WHY this specific tool_call is the right opening move given the task decomposition>",
   "tool_call":              {{"name": "<tool name from the schemas above>", "arguments": {{...}}}},
   "action_description":     "<5-15 word short description of the action: name the visible target element and expected outcome>"
 }}
 
 Field rules:
 - `task_analysis` is a paragraph decomposing the task into sub-goals. Required and non-empty.
-- `remaining_subgoals` is a JSON array of strings listing all open items.
-- `next_action_rationale` is a non-empty one-sentence string stating why the chosen tool advances a remaining_subgoal.
+- `next_action_rationale` is a non-empty first-person string (a few sentences) giving the key reasoning for why the chosen tool advances the task.
 - `tool_call` is required — choose the first tool to invoke based on the task analysis.
 - `action_description` is a non-empty string (5-15 words).
 - `tool_call.arguments` must use the exact English argument keys / enum values from the tool schema.
 
 Rules:
-- Use only goto, new_tab, hover, click, double_click, fill, select_option, scroll, drag, wait, go_back, press_key, switch_tab, close_tab, or code_sandbox.
+- Use only goto, new_tab, hover, click, double_click, type, select_option, scroll, drag, wait, go_back, press_key, switch_tab, close_tab, or code_sandbox.
 - Use exactly one tool call.
-- For hover, click, fill, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot.
+- For hover, click, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot. type takes no coordinates (it types into the currently-focused element).
 """.strip()
 
 
@@ -1301,15 +1387,14 @@ OPERATION_TURN_USER_PROMPT = """## Current Date
 ## Required Output Format
 Return EXACTLY ONE top-level JSON object as your entire response. No XML tags. No markdown fences. No prose outside the JSON.
 
-Generate the keys in the order shown — `this_turn` is your fresh analysis of THIS turn's observation, and `cumulative_progress` is built by READING the prior turn's `cumulative_progress` (from "Previous Thought" above) and walking through it POINT BY POINT — explicitly KEEPING items still true, MODIFYING/CORRECTING items now refined or superseded (state both old and new), ADDING new items contributed by `this_turn`, and DELETING items no longer true. Format is flexible prose or short bullet-like lines.
+Generate the keys in the order shown — `this_turn` is your fresh analysis of THIS turn's observation, and `cumulative_progress` is a CONCISE re-synthesis of the prior `cumulative_progress` (from the Previous Thought above) merged with `this_turn`: keep what is still true, correct what changed, add what is new, drop what is contradicted, and collapse dead-ends into one-line notes — rewritten compactly in your own words, never copied verbatim or grown unbounded.
 
 Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
-  "this_turn":              "<one paragraph: what THIS turn newly contributed. May be a fact surfaced from the latest tool result, a state change just produced (e.g. \"clicked 'Add to bag', cart count 0→1\", \"page navigated from /search to /product/123\"), a confirmation, or a failure. Be specific.>",
-  "cumulative_progress":    "<RUNNING summary of EVERYTHING accomplished so far that is relevant to the task. Carried across turns. ONLY write progress that has actually been made (facts confirmed, values collected, URLs identified, state changes that took effect). DO NOT write what is still missing, what remains to do, blockers, plans, or guesses — those belong in `remaining_subgoals` or `this_turn`, not here. Be COMPREHENSIVE — capture every task-relevant concrete fact and every confirmed state change, including small intermediate wins (filter applied successfully, correct page reached, dropdown configured, login completed). Build it by taking the prior turn's `cumulative_progress` (from \"Previous Thought\") and walking through it POINT BY POINT against `this_turn`: KEEP each prior item that is still true; MODIFY/CORRECT items now refined or superseded (state both the old and the new value); ADD any NEW items confirmed in `this_turn`; DELETE items the new evidence shows were wrong. Cover BOTH information progress (concrete facts/values/URLs collected) AND operation progress (cart additions, sign-ins, forms submitted, filters applied, bookings confirmed, navigation milestones reached). Each entry must describe something already done, not something pending.>",
-  "remaining_subgoals":     ["<atomic open item still required to finish the task. Can be a fact to find OR a state target not yet reached (e.g. \"item still missing from cart\", \"booking form not yet submitted\")>", "..."],
-  "next_action_rationale":  "<one sentence: WHY the chosen tool will close some remaining_subgoal>",
+  "this_turn":              "<one paragraph, first person: the specific facts/values/state the LATEST observation newly surfaced (names, numbers, URLs, quotes, or a state change like clicked Add-to-bag, cart 0→1), plus my read of them — grounded in the observation. Be specific; a confirmation or a failure also counts.>",
+  "cumulative_progress":    "<A CONCISE, RE-SYNTHESIZED running record of what I have actually CONFIRMED/accomplished so far (facts/values/URLs collected AND state changes that took effect), first person — a SYNTHESIS, NOT an append-only log. Keep it CONCISE; never let it grow unbounded as the trajectory lengthens. Build it each turn by REWRITING the prior `cumulative_progress` (from the Previous Thought above) together with `this_turn` in my own words: MERGE related items, KEEP what is still true, MODIFY/CORRECT what is refined or superseded, ADD what `this_turn` confirmed, DELETE what is now contradicted — do NOT copy the prior version verbatim. COLLAPSE every exhausted / failed / dead-end avenue into a SINGLE one-line note instead of keeping its full detail. ONLY confirmed progress — NO open items, plans, blockers, or guesses (those go in `this_turn`). Cover BOTH information progress (facts/values/URLs) AND operation progress (cart additions, sign-ins, forms submitted, filters applied, navigation milestones). SOLE source for the final answer, so retain every answer-relevant fact compactly.>",
+  "next_action_rationale":  "<first person, a few sentences: distill the key reasoning for THIS action by REFLECTING across the Recent Actions (what I have already tried and where it yielded results or dead-ended), the previous tool result, and my current `cumulative_progress` — so this move builds on the history instead of repeating it — then state what the observation implied, any reflection on prior calls/loops, and WHY this specific tool_call is the right next move to advance the task>",
   "tool_call":              {{"name": "<tool name from the schemas above>", "arguments": {{...}}}} OR null,
   "action_description":     "<5-15 word short description of the action: name the visible target element and the expected outcome. REQUIRED when tool_call is non-null; use null when answer is set instead.>",
   "answer":                 null OR "<final answer string if you are confident the task is solved/blocked and want to terminate THIS TURN early>"
@@ -1317,7 +1402,6 @@ Schema (every required key MUST be present; extra keys are forbidden):
 
 Field rules:
 - `this_turn` and `cumulative_progress` are paragraph-style strings (free-form prose, may include short bullet-like lines). Both are required and non-empty.
-- `remaining_subgoals` is a JSON array of strings (may be the empty array `[]` only when the task is fully solved).
 - EXACTLY ONE of `tool_call` (object) and `answer` (non-empty string) must be non-null; the other MUST be null.
 - Set `answer` (and `tool_call`=null) ONLY when you are confident the task is fully solved (or definitively blocked) and want to terminate the trajectory THIS turn. Otherwise, set `tool_call` (the next tool to invoke) and `answer`=null.
 - When `tool_call` is set, it must be the structured tool-call JSON for ONE tool from the schemas listed in the system prompt.
@@ -1325,11 +1409,11 @@ Field rules:
 - When `tool_call` is non-null, `action_description` MUST be a non-empty string of 5-15 words naming the visible target element and the expected outcome. When `answer` is set (and `tool_call` is null), `action_description` MUST be null.
 
 Rules:
-- Use only goto, new_tab, hover, click, double_click, fill, select_option, scroll, drag, wait, go_back, press_key, switch_tab, close_tab, or code_sandbox.
+- Use only goto, new_tab, hover, click, double_click, type, select_option, scroll, drag, wait, go_back, press_key, switch_tab, close_tab, or code_sandbox.
 - Use code_sandbox only for calculations, parsing task-provided local attachments, or validating data-derived results; do not use it to browse the web.
 - Do not repeat the same failed browser action without changing strategy.
 - Use exactly one tool call if not answering.
-- For hover, click, fill, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot. drag takes (from_x, from_y, to_x, to_y).
+- For hover, click, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot. type takes no coordinates (it types into the currently-focused element). drag takes (from_x, from_y, to_x, to_y).
 """.strip()
 
 
@@ -1364,21 +1448,19 @@ You have reached the final step budget. You are not allowed to take more tool ac
 ## Required Output Format
 This is the FINAL turn. Return EXACTLY ONE top-level JSON object as your entire response. No XML tags. No markdown fences. No prose outside the JSON.
 
-Generate the keys in the order shown — `this_turn` is your fresh analysis; `cumulative_progress` is built by walking the prior `cumulative_progress` POINT BY POINT (keep / modify / add / delete) so the result is a clean updated running KB, then derive `answer_plan` and the final `answer`.
+Generate the keys in the order shown — `this_turn` is your fresh analysis; `cumulative_progress` is a CONCISE re-synthesis of the prior `cumulative_progress` merged with `this_turn` (keep / correct / add / drop / collapse dead-ends, rewritten compactly), then derive `answer_plan` and the final `answer`.
 
 Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
-  "this_turn":            "<one paragraph: what the final turn newly shows. Could be a final value confirmation, a final state observation, or a blocker preventing completion.>",
-  "cumulative_progress":  "<RUNNING summary of EVERYTHING accomplished so far that is relevant to the task. ONLY write progress that has actually been made (facts confirmed, values collected, URLs identified, state changes that took effect). DO NOT write what is still missing, what remains, blockers, plans, or guesses — those belong elsewhere. Be COMPREHENSIVE — capture every task-relevant concrete fact and every confirmed state change, including small intermediate wins. Build it by taking the prior turn's `cumulative_progress` and walking through it POINT BY POINT against `this_turn`: KEEP items still true; MODIFY/CORRECT items now refined or superseded (state both old and new); ADD new items confirmed in `this_turn`; DELETE items the new evidence shows were wrong. This is your authoritative record of what was accomplished and what `answer` will be composed from.>",
-  "remaining_subgoals":   ["<sub-goal NOT met; describe the blocker. Use [] if the task is fully solved.>", "..."],
+  "this_turn":            "<one paragraph, first person: the specific facts/values/state the LATEST observation newly surfaced (names, numbers, URLs, quotes, or a state change like clicked Add-to-bag, cart 0→1), plus my read of them — grounded in the observation. Be specific; a confirmation or a failure also counts.>",
+  "cumulative_progress":  "<The final knowledge base: a CONCISE synthesis of every fact/state the answer is built from — complete enough to FULLY support `answer`, but RE-SYNTHESIZED and compact (merge related items; collapse each exhausted/dead-end avenue to one line), NOT an append-only dump of everything seen. Built from the prior `cumulative_progress` + `this_turn`. SOLE source for `answer`.>",
   "answer_plan":          "<one or two sentences: how the answer string is composed from cumulative_progress; explicitly call out any uncertainty or unresolved blocker>",
   "answer":               "<the final answer string. For information-seeking tasks, give the concrete answer. For operation tasks, describe the completed result/state (or the blocker if it was not reached).>"
 }}
 
 Field rules:
 - `this_turn`, `cumulative_progress`, `answer_plan`, `answer` are all required non-empty strings.
-- `remaining_subgoals` is a JSON array of strings. Use `[]` when the task is fully solved.
 - Do NOT include a `tool_call` field on the final turn.
 
 """.strip()
@@ -1399,16 +1481,14 @@ Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
   "task_analysis":          "<Analyze the task: (1) identify all concrete sub-goals — facts to find, values to collect, sources to check; (2) determine which sub-goals to tackle first.>",
-  "remaining_subgoals":     ["<atomic open item still required to finish the task>", "..."],
-  "next_action_rationale":  "<one sentence: WHY the chosen tool will close some remaining_subgoal>",
+  "next_action_rationale":  "<first person, a few sentences: the key reasoning for this first action — the important considerations and WHY this specific tool_call is the right opening move given the task decomposition>",
   "tool_call":              {{"name": "<tool name from the schemas above>", "arguments": {{...}}}},
   "action_description":     "<5-15 word short description of the action: name the target and expected outcome>"
 }}
 
 Field rules:
 - `task_analysis` is a paragraph decomposing the task into sub-goals. Required and non-empty.
-- `remaining_subgoals` is a JSON array of strings listing all open items.
-- `next_action_rationale` is a non-empty one-sentence string stating why the chosen tool advances a remaining_subgoal.
+- `next_action_rationale` is a non-empty first-person string (a few sentences) giving the key reasoning for why the chosen tool advances the task.
 - `tool_call` is required — choose the first tool to invoke based on the task analysis.
 - `action_description` is a non-empty string (5-15 words).
 - `tool_call.arguments` must use the exact English argument keys / enum values from the tool schema.
@@ -1443,15 +1523,14 @@ SEARCH_TURN_USER_PROMPT = """## Current Date
 ## Required Output Format
 Return EXACTLY ONE top-level JSON object as your entire response. No XML tags. No markdown fences. No prose outside the JSON.
 
-Generate the keys in the order shown — `this_turn` is your fresh analysis of THIS turn's observation, and `cumulative_progress` is built by READING the prior turn's `cumulative_progress` (from "Previous Thought" above) and walking through it POINT BY POINT — explicitly KEEPING items still true, MODIFYING/CORRECTING items now refined or superseded (state both old and new), ADDING new items contributed by `this_turn`, and DELETING items no longer true. Format is flexible prose or short bullet-like lines.
+Generate the keys in the order shown — `this_turn` is your fresh analysis of THIS turn's observation, and `cumulative_progress` is a CONCISE re-synthesis of the prior `cumulative_progress` (from the Previous Thought above) merged with `this_turn`: keep what is still true, correct what changed, add what is new, drop what is contradicted, and collapse dead-ends into one-line notes — rewritten compactly in your own words, never copied verbatim or grown unbounded.
 
 Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
-  "this_turn":              "<one paragraph: what THIS turn newly contributed. May be a fact surfaced from the latest tool result, a state change just produced (e.g. \"clicked 'Add to bag', cart count 0→1\", \"page navigated from /search to /product/123\"), a confirmation, or a failure. Be specific.>",
-  "cumulative_progress":    "<RUNNING summary of EVERYTHING accomplished so far that is relevant to the task. Carried across turns. ONLY write progress that has actually been made (facts confirmed, values collected, URLs identified, state changes that took effect). DO NOT write what is still missing, what remains to do, blockers, plans, or guesses — those belong in `remaining_subgoals` or `this_turn`, not here. Be COMPREHENSIVE — capture every task-relevant concrete fact and every confirmed state change, including small intermediate wins (filter applied successfully, correct page reached, dropdown configured, login completed). Build it by taking the prior turn's `cumulative_progress` (from \"Previous Thought\") and walking through it POINT BY POINT against `this_turn`: KEEP each prior item that is still true; MODIFY/CORRECT items now refined or superseded (state both the old and the new value); ADD any NEW items confirmed in `this_turn`; DELETE items the new evidence shows were wrong. Cover BOTH information progress (concrete facts/values/URLs collected) AND operation progress (cart additions, sign-ins, forms submitted, filters applied, bookings confirmed, navigation milestones reached). Each entry must describe something already done, not something pending.>",
-  "remaining_subgoals":     ["<atomic open item still required to finish the task. Can be a fact to find OR a state target not yet reached (e.g. \"item still missing from cart\", \"booking form not yet submitted\")>", "..."],
-  "next_action_rationale":  "<one sentence: WHY the chosen tool will close some remaining_subgoal>",
+  "this_turn":              "<one paragraph, first person: the specific facts/values/state the LATEST observation newly surfaced (names, numbers, URLs, quotes, or a state change like clicked Add-to-bag, cart 0→1), plus my read of them — grounded in the observation. Be specific; a confirmation or a failure also counts.>",
+  "cumulative_progress":    "<A CONCISE, RE-SYNTHESIZED running record of what I have actually CONFIRMED/accomplished so far (facts/values/URLs collected AND state changes that took effect), first person — a SYNTHESIS, NOT an append-only log. Keep it CONCISE; never let it grow unbounded as the trajectory lengthens. Build it each turn by REWRITING the prior `cumulative_progress` (from the Previous Thought above) together with `this_turn` in my own words: MERGE related items, KEEP what is still true, MODIFY/CORRECT what is refined or superseded, ADD what `this_turn` confirmed, DELETE what is now contradicted — do NOT copy the prior version verbatim. COLLAPSE every exhausted / failed / dead-end avenue into a SINGLE one-line note instead of keeping its full detail. ONLY confirmed progress — NO open items, plans, blockers, or guesses (those go in `this_turn`). Cover BOTH information progress (facts/values/URLs) AND operation progress (cart additions, sign-ins, forms submitted, filters applied, navigation milestones). SOLE source for the final answer, so retain every answer-relevant fact compactly.>",
+  "next_action_rationale":  "<first person, a few sentences: distill the key reasoning for THIS action by REFLECTING across the Recent Actions (what I have already tried and where it yielded results or dead-ended), the previous tool result, and my current `cumulative_progress` — so this move builds on the history instead of repeating it — then state what the observation implied, any reflection on prior calls/loops, and WHY this specific tool_call is the right next move to advance the task>",
   "tool_call":              {{"name": "<tool name from the schemas above>", "arguments": {{...}}}} OR null,
   "action_description":     "<5-15 word short description of the action: name the visible target element and the expected outcome. REQUIRED when tool_call is non-null; use null when answer is set instead.>",
   "answer":                 null OR "<final answer string if you are confident the task is solved/blocked and want to terminate THIS TURN early>"
@@ -1459,7 +1538,6 @@ Schema (every required key MUST be present; extra keys are forbidden):
 
 Field rules:
 - `this_turn` and `cumulative_progress` are paragraph-style strings (free-form prose, may include short bullet-like lines). Both are required and non-empty.
-- `remaining_subgoals` is a JSON array of strings (may be the empty array `[]` only when the task is fully solved).
 - EXACTLY ONE of `tool_call` (object) and `answer` (non-empty string) must be non-null; the other MUST be null.
 - Set `answer` (and `tool_call`=null) ONLY when you are confident the task is fully solved (or definitively blocked) and want to terminate the trajectory THIS turn. Otherwise, set `tool_call` (the next tool to invoke) and `answer`=null.
 - When `tool_call` is set, it must be the structured tool-call JSON for ONE tool from the schemas listed in the system prompt.
@@ -1502,21 +1580,19 @@ You have reached the final step budget. You are not allowed to take more tool ac
 ## Required Output Format
 This is the FINAL turn. Return EXACTLY ONE top-level JSON object as your entire response. No XML tags. No markdown fences. No prose outside the JSON.
 
-Generate the keys in the order shown — `this_turn` is your fresh analysis; `cumulative_progress` is built by walking the prior `cumulative_progress` POINT BY POINT (keep / modify / add / delete) so the result is a clean updated running KB, then derive `answer_plan` and the final `answer`.
+Generate the keys in the order shown — `this_turn` is your fresh analysis; `cumulative_progress` is a CONCISE re-synthesis of the prior `cumulative_progress` merged with `this_turn` (keep / correct / add / drop / collapse dead-ends, rewritten compactly), then derive `answer_plan` and the final `answer`.
 
 Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
-  "this_turn":            "<one paragraph: what the final turn newly shows. Could be a final value confirmation, a final state observation, or a blocker preventing completion.>",
-  "cumulative_progress":  "<RUNNING summary of EVERYTHING accomplished so far that is relevant to the task. ONLY write progress that has actually been made (facts confirmed, values collected, URLs identified, state changes that took effect). DO NOT write what is still missing, what remains, blockers, plans, or guesses — those belong elsewhere. Be COMPREHENSIVE — capture every task-relevant concrete fact and every confirmed state change, including small intermediate wins. Build it by taking the prior turn's `cumulative_progress` and walking through it POINT BY POINT against `this_turn`: KEEP items still true; MODIFY/CORRECT items now refined or superseded (state both old and new); ADD new items confirmed in `this_turn`; DELETE items the new evidence shows were wrong. This is your authoritative record of what was accomplished and what `answer` will be composed from.>",
-  "remaining_subgoals":   ["<sub-goal NOT met; describe the blocker. Use [] if the task is fully solved.>", "..."],
+  "this_turn":            "<one paragraph, first person: the specific facts/values/state the LATEST observation newly surfaced (names, numbers, URLs, quotes, or a state change like clicked Add-to-bag, cart 0→1), plus my read of them — grounded in the observation. Be specific; a confirmation or a failure also counts.>",
+  "cumulative_progress":  "<The final knowledge base: a CONCISE synthesis of every fact/state the answer is built from — complete enough to FULLY support `answer`, but RE-SYNTHESIZED and compact (merge related items; collapse each exhausted/dead-end avenue to one line), NOT an append-only dump of everything seen. Built from the prior `cumulative_progress` + `this_turn`. SOLE source for `answer`.>",
   "answer_plan":          "<one or two sentences: how the answer string is composed from cumulative_progress; explicitly call out any uncertainty or unresolved blocker>",
   "answer":               "<the final answer string. For information-seeking tasks, give the concrete answer. For operation tasks, describe the completed result/state (or the blocker if it was not reached).>"
 }}
 
 Field rules:
 - `this_turn`, `cumulative_progress`, `answer_plan`, `answer` are all required non-empty strings.
-- `remaining_subgoals` is a JSON array of strings. Use `[]` when the task is fully solved.
 - Do NOT include a `tool_call` field on the final turn.
 
 """.strip()
@@ -1565,16 +1641,14 @@ Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
   "task_analysis":          "<Analyze the task and identify concrete sub-goals.>",
-  "remaining_subgoals":     ["<atomic open item still required to finish the task>", "..."],
-  "next_action_rationale":  "<one sentence: WHY the chosen tool will close some remaining_subgoal>",
+  "next_action_rationale":  "<first person, a few sentences: the key reasoning for this first action — the important considerations and WHY this specific tool_call is the right opening move given the task decomposition>",
   "tool_call":              {{"name": "<tool name from the schemas above>", "arguments": {{...}}}},
   "action_description":     "<5-15 word short description of the action: name the target and expected outcome>"
 }}
 
 Field rules:
 - `task_analysis` is a paragraph decomposing the task into concrete sub-goals. Required and non-empty.
-- `remaining_subgoals` is a JSON array of strings listing all open items. Must not be empty on the first turn.
-- `next_action_rationale` is a non-empty one-sentence string stating why the chosen tool advances a remaining_subgoal.
+- `next_action_rationale` is a non-empty first-person string (a few sentences) giving the key reasoning for why the chosen tool advances the task.
 - `tool_call` is required — choose the first tool to invoke based on the task analysis.
 - `action_description` is a non-empty string (5-15 words).
 - `tool_call.arguments` must use the exact English argument keys / enum values from the tool schema.
@@ -1606,24 +1680,22 @@ Schema (every required key MUST be present; extra keys are forbidden):
 
 {{
   "task_analysis":          "<Analyze the task and identify concrete sub-goals.>",
-  "remaining_subgoals":     ["<atomic open item still required to finish the task>", "..."],
-  "next_action_rationale":  "<one sentence: WHY the chosen tool will close some remaining_subgoal>",
+  "next_action_rationale":  "<first person, a few sentences: the key reasoning for this first action — the important considerations and WHY this specific tool_call is the right opening move given the task decomposition>",
   "tool_call":              {{"name": "<tool name from the schemas above>", "arguments": {{...}}}},
   "action_description":     "<5-15 word short description of the action: name the visible target element and expected outcome>"
 }}
 
 Field rules:
 - `task_analysis` is a paragraph decomposing the task into concrete sub-goals. Required and non-empty.
-- `remaining_subgoals` is a JSON array of strings listing all open items. Must not be empty on the first turn.
-- `next_action_rationale` is a non-empty one-sentence string stating why the chosen tool advances a remaining_subgoal.
+- `next_action_rationale` is a non-empty first-person string (a few sentences) giving the key reasoning for why the chosen tool advances the task.
 - `tool_call` is required — choose the first tool to invoke based on the task analysis.
 - `action_description` is a non-empty string (5-15 words).
 - `tool_call.arguments` must use the exact English argument keys / enum values from the tool schema.
 
 Rules:
-- Use only goto, new_tab, hover, click, double_click, fill, select_option, scroll, drag, wait, go_back, press_key, switch_tab, close_tab, code_sandbox, or switch.
+- Use only goto, new_tab, hover, click, double_click, type, select_option, scroll, drag, wait, go_back, press_key, switch_tab, close_tab, code_sandbox, or switch.
 - Use exactly one tool call.
-- For hover, click, fill, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot.
+- For hover, click, regional scroll, and drag, output (x, y) coordinates of the target element identified visually from the screenshot. type takes no coordinates (it types into the currently-focused element).
 """.strip()
 
 

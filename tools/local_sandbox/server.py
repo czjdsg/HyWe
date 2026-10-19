@@ -240,6 +240,9 @@ def handle_run_code(body: dict[str, Any]) -> dict[str, Any]:
             "files": {},
         }
 
+    # Re-create the root on every request: tmp cleaners may delete it while the
+    # server keeps running, which would otherwise fail every later call.
+    WORK_ROOT.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=str(WORK_ROOT)) as tmp:
         workdir = Path(tmp)
         try:

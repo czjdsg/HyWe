@@ -1,6 +1,0 @@
-openai
-playwright
-pillow
-requests
-beautifulsoup4
-transformers

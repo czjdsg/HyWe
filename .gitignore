@@ -1,49 +1,23 @@
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
 *.egg-info/
-.eggs/
-build/
-dist/
+.venv/
+venv/
 
-# Runtime artifacts
-results/
+# run outputs, converted third-party benchmarks, local config
 runs/
-outputs/
-eval_results/
-eval_outputs/
-*.log
 logs/
-pool_logs/
-
-# Pool secrets and state
-pools/jina_pool/jina_pool.db
-pools/serper_pool/serper_pool.db
-pools/jina_pool/jina_pool.pid
-pools/serper_pool/serper_pool.pid
-pools/jina_pool/logs/
-pools/serper_pool/logs/
-
-# Local sandbox state
-tools/local_sandbox/logs/
-tools/local_sandbox/sandbox.pid
-/tmp/hwa_sandbox/
-
-# Local env
+benchmarks/data/
+configs/*.env
+!configs/*.env.example
+*.log
+.pytest_cache/
+*.pid
 .env
-env.local.sh
-*.local.sh
+.env.*
+!.env.example
 
-# Editor / OS noise
 .DS_Store
 .idea/
 .vscode/
 *.swp
-*~
-
-# Large model / data caches
-models/
-*.pt
-*.bin
-*.safetensors

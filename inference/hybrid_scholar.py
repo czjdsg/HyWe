@@ -23,7 +23,6 @@ class ScholarTool:
     def _has_scholar_access(self) -> bool:
         return bool(
             self.api_key
-            or os.getenv("SERPER_POOL_TOKEN")
             or self.base_url != DEFAULT_SERPER_BASE_URL
         )
 
@@ -31,9 +30,6 @@ class ScholarTool:
         headers = {"Content-Type": "application/json"}
         if self.api_key:
             headers["X-API-KEY"] = self.api_key
-        pool_token = os.getenv("SERPER_POOL_TOKEN")
-        if pool_token:
-            headers["X-Pool-Token"] = pool_token
         return headers
 
     @staticmethod
@@ -145,7 +141,7 @@ class ScholarTool:
             return (
                 "[scholar] Missing Scholar/Serper access. "
                 "Set SERPER_KEY_ID/SERPER_API_KEY/SERPER_KEY, "
-                "or point SERPER_BASE_URL or SCHOLAR_BASE_URL to the local Serper pool."
+                "or point SERPER_BASE_URL or SCHOLAR_BASE_URL to a Serper-compatible endpoint."
             )
 
         headers = self._build_headers()

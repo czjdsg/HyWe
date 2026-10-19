@@ -66,9 +66,6 @@ def _build_jina_headers(api_key: str = "") -> dict[str, str]:
     resolved_key = api_key or os.getenv("JINA_API_KEY") or os.getenv("JINA_API_KEYS") or ""
     if resolved_key:
         headers["Authorization"] = f"Bearer {resolved_key}"
-    pool_token = os.getenv("JINA_POOL_TOKEN")
-    if pool_token:
-        headers["X-Pool-Token"] = pool_token
     return headers
 
 
@@ -158,6 +155,25 @@ class VisitTool:
         self.max_pdf_download_bytes = int(
             os.getenv("MAX_PDF_DOWNLOAD_BYTES", "50000000")
         )
+        # Production rollouts should be able to trade exhaustive batch visits
+        # for bounded latency without changing the model-facing tool schema.
+        # Defaults preserve the historical behaviour; launchers can tighten
+        # these values when a reader pool is unhealthy.
+        self.max_urls_per_call = max(
+            1, int(os.getenv("VISIT_MAX_URLS_PER_CALL", "5"))
+        )
+        self.jina_fetch_attempts = max(
+            1, int(os.getenv("VISIT_JINA_FETCH_ATTEMPTS", "3"))
+        )
+        self.jina_fetch_timeout = max(
+            1.0, float(os.getenv("VISIT_JINA_FETCH_TIMEOUT", "60"))
+        )
+        self.direct_fetch_attempts = max(
+            1, int(os.getenv("VISIT_DIRECT_FETCH_ATTEMPTS", "2"))
+        )
+        self.direct_fetch_timeout = max(
+            1.0, float(os.getenv("VISIT_DIRECT_FETCH_TIMEOUT", "30"))
+        )
 
     def call(self, url: str | Iterable[str], goal: str, parse_type: str = "auto") -> str:
         urls: list[str]
@@ -182,7 +198,15 @@ class VisitTool:
         if parse_type not in ALLOWED_PARSE_TYPES:
             return "[visit] Invalid parse_type: expected one of auto, html, or pdf."
 
-        outputs = [self._visit_single(item, goal, parse_type) for item in urls[:5]]
+        selected_urls = urls[: self.max_urls_per_call]
+        outputs = [self._visit_single(item, goal, parse_type) for item in selected_urls]
+        if len(urls) > len(selected_urls):
+            outputs.append(
+                "[visit] Skipped "
+                f"{len(urls) - len(selected_urls)} additional URL(s) because this "
+                f"rollout is configured for at most {self.max_urls_per_call} URL(s) "
+                "per visit call. Call visit again for the remaining URLs if needed."
+            )
         return "\n=======\n".join(outputs)
 
     def _visit_single(self, url: str, goal: str, parse_type: str = "auto") -> str:
@@ -213,8 +237,29 @@ class VisitTool:
             return content or f"[visit] Failed to read page (url: {url}, goal: {goal})."
 
         raw_content = content
+        # Guard against pathological pages: jina occasionally returns multi-MB
+        # blobs (raw data files / dumps of 10-100M chars). Tokenizing those hangs
+        # the worker on a CPU-bound encode — and since the HF tokenizer serializes
+        # under a lock, ONE giant page stalls ALL concurrent workers (server goes
+        # to 0 req/s). Cap by CHARS before any tokenize; 1M chars (~250k tokens)
+        # covers any legitimate web page.
+        max_raw_chars = max(
+            1, int(os.getenv("VISIT_MAX_RAW_CHARS", "1000000"))
+        )
+        if raw_content and len(raw_content) > max_raw_chars:
+            original_chars = len(raw_content)
+            raw_content = raw_content[:max_raw_chars]
+            content = raw_content
+            raw_cap_note = (
+                f"Reader output was capped at {max_raw_chars} of "
+                f"{original_chars} characters before tokenization."
+            )
+        else:
+            raw_cap_note = ""
         raw_content_tokens = self._count_tokens(raw_content)
         chunks, chunk_note = self._chunk_content(content)
+        if raw_cap_note:
+            chunk_note = " ".join(part for part in (raw_cap_note, chunk_note) if part)
         raw_response = ""
         parsed: dict | None = None
         accumulated_summary = ""
@@ -285,12 +330,12 @@ class VisitTool:
             )
         }
 
-        for attempt in range(3):
+        for attempt in range(self.jina_fetch_attempts):
             try:
                 response = requests.get(
                     _build_jina_reader_url(url),
                     headers=headers,
-                    timeout=60,
+                    timeout=self.jina_fetch_timeout,
                 )
                 if response.status_code == 200 and response.text.strip():
                     return self._parse_jina_response(response.text)
@@ -298,12 +343,12 @@ class VisitTool:
                 pass
             time.sleep(1 + attempt)
 
-        for attempt in range(2):
+        for attempt in range(self.direct_fetch_attempts):
             try:
                 response = requests.get(
                     url,
                     headers=direct_headers,
-                    timeout=30,
+                    timeout=self.direct_fetch_timeout,
                 )
                 response.raise_for_status()
                 content_type = (
@@ -314,7 +359,7 @@ class VisitTool:
                 if response.text.strip():
                     return response.text
             except Exception:
-                if attempt == 1:
+                if attempt == self.direct_fetch_attempts - 1:
                     return f"[visit] Failed to read page (url: {url})."
                 time.sleep(1 + attempt)
 

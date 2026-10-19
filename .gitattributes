@@ -1,0 +1,2 @@
+# Preserve upstream evaluator prompt strings, including Markdown hard breaks.
+evaluation/online_mind2web/** whitespace=-blank-at-eol

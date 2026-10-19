@@ -1,0 +1,24 @@
+{
+  "python": "3.13.9",
+  "packages": {
+    "openai": "2.41.1",
+    "httpx": "0.28.1",
+    "playwright": "1.62.0",
+    "playwright-stealth": "2.0.3",
+    "termcolor": "3.3.0",
+    "Pillow": "11.3.0",
+    "requests": "2.34.2",
+    "beautifulsoup4": "4.13.5",
+    "transformers": "5.12.1",
+    "json_repair": "0.61.7",
+    "pymupdf": "1.27.2.3",
+    "backoff": "2.2.1",
+    "pandas": "2.3.3",
+    "pyarrow": "21.0.0",
+    "pytest": "8.4.2",
+    "tokenizers": "0.22.2",
+    "huggingface_hub": "1.27.0"
+  },
+  "environment": "Fresh virtualenv with system packages enabled; requirements-dev.txt installation succeeded. Tests and the full offline browser/judge smoke passed in a separate checkout.",
+  "note": "Observed verification environment, not a locked dependency resolution. No real-model live benchmark rerun was performed."
+}
