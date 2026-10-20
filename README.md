@@ -47,7 +47,10 @@ environment, then run:
 
 ```bash
 vllm serve yzxjb/HyWe-35B --served-model-name HyWe-35B \
-  --host 127.0.0.1 --port 8000 --tensor-parallel-size 2 --max-model-len 224000
+  --host 127.0.0.1 --port 8000 \
+  --dtype bfloat16 --tensor-parallel-size 2 \
+  --max-model-len 224000 --gpu-memory-utilization 0.90 \
+  --generation-config vllm
 ```
 
 Adjust GPU count and concurrency to your available memory. The BF16 checkpoint
@@ -78,6 +81,55 @@ the step budget (100/300), not the starting mode. Each task produces
 `<run>/<task_id>/result.json`, `meta.json`, and its screenshot trajectory.
 The runner resumes completed tasks and retries unfinished infrastructure failures;
 it exits unsuccessfully if its retry rounds finish with tasks still incomplete.
+
+## Local deployment and inference parameters
+
+The serving command above uses BF16 weights, tensor parallelism across two GPUs,
+a 224,000-token context window, and a GPU-memory fraction of 0.90. The GPU count
+and memory fraction are deployment examples; adjust them to your hardware.
+`--generation-config vllm` selects the server's generation defaults, while HyWe
+sends the sampling parameters below with each policy-model request. See the
+📘 [vLLM serving reference](https://docs.vllm.ai/en/stable/cli/serve/#--generation-config).
+
+Source `configs/hywe.env` and use `scripts/run_hywe.sh` to apply this inference
+preset. Direct calls to `inference/run_hybrid_web_agent.py` should pass the
+corresponding flags explicitly.
+
+| Parameter | Preset value | CLI flag or environment setting |
+| --- | --- | --- |
+| Temperature | **1.0** | `--temperature 1.0` |
+| Top-p | **0.95** | `--top-p 0.95` |
+| Top-k | **20** | `--top-k 20` |
+| Repetition penalty | **1.05** | `--repetition-penalty 1.05` |
+| Maximum output per turn | **8,192 tokens** | `--max-tokens 8192` |
+| Base random seed | **1,234** | `--seed 1234`; task, attempt and call index determine each request's seed |
+| Context window | **224,000 tokens** | Server: `--max-model-len 224000`; client: `HYBRID_MAX_INPUT_TOKENS=224000` |
+| Context-fold watermarks | **131,072 / 65,536 tokens** | `HYBRID_FOLD_HIGH=131072`, `HYBRID_FOLD_LOW=65536` |
+| Reasoning | Enabled | `HYBRID_DISABLE_THINKING=0` |
+| Context rendering | Segment-wise multi-turn | `HYBRID_V2_RENDER=multiturn` |
+| Browser viewport | **1280 × 720** | `--window-width 1280 --window-height 720` |
+| HyWe-35B coordinate grid | **0–1000** | Auto-detected for `HyWe-35B`; `--coord-scale 1000` for a custom served name |
+| Steps per attempt | **100 / 300** | `operation` / `search` profile; `--max-iter` overrides the budget |
+| Concurrent tasks | **8** | `MAX_WORKERS=8` or `--max-workers 8` |
+| Format retries per turn | **5** | `--max-format-retries 5` |
+| Error / format-failure attempts | **2** | `--max-task-attempts 2` |
+| Step-limit attempt budget | **5** | `--max-iter-restarts 5` |
+| Policy / summarizer timeout | **1,800 seconds each** | `--api-timeout 1800 --summary-timeout 1800` |
+| Screenshot transport | Inline base64 | `HYBRID_IMAGE_TRANSPORT=base64` |
+
+For an explicit, editable sampling configuration:
+
+```bash
+source configs/hywe.env
+MAX_WORKERS=8 bash scripts/run_hywe.sh \
+  benchmarks/hywebench/hywebench_100.jsonl runs/hywebench operation \
+  --temperature 1.0 --top-p 0.95 --top-k 20 \
+  --repetition-penalty 1.05 --max-tokens 8192 --seed 1234
+```
+
+Arguments after the profile override the launcher's corresponding settings.
+Reduce `MAX_WORKERS` when GPU memory or KV-cache capacity limits concurrency.
+Keep the client context window consistent with the server's `--max-model-len`.
 
 ## Evaluation
 

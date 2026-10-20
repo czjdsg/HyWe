@@ -6,6 +6,12 @@ model serving has a separate `requirements-serve.txt` because vLLM has its own
 CUDA/PyTorch requirements. Use a vLLM build supporting the checkpoint's
 `qwen3_5_moe` architecture; core inference only needs an API endpoint.
 
+The README's [local deployment and inference parameter table](README.md#local-deployment-and-inference-parameters)
+lists the sampling preset, context budget, browser settings and task limits.
+The launcher uses temperature 1.0, top-p 0.95, top-k 20, repetition penalty
+1.05 and 8,192 output tokens per turn. These are request parameters supplied
+by `scripts/run_hywe.sh`.
+
 ## Policy endpoint
 
 Copy `configs/hywe.env.example` to the ignored `configs/hywe.env`, edit it, and
