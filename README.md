@@ -68,11 +68,10 @@ It executes subprocesses as your current user; use it only on your own trusted
 development machine. An existing SandboxFusion-compatible `/run_code` service
 can be substituted with `CODE_SANDBOX_BASE_URL`.
 
-Run a task or the full hybrid benchmark:
+Run an example task, then follow the evaluation commands below for HyWeBench.
 
 ```bash
 bash scripts/run_hywe.sh examples/task.jsonl runs/example operation
-bash scripts/run_hywe.sh benchmarks/hywebench/hywebench_100.jsonl runs/hywebench operation
 ```
 
 `web` controls the starting mode: a non-empty URL starts browser operation;
@@ -133,11 +132,37 @@ Keep the client context window consistent with the server's `--max-model-len`.
 
 ## Evaluation
 
-🤗 **[HyWeBench on Hugging Face](https://huggingface.co/datasets/yzxjb/HyWeBench)**
-contains the 100 evaluation tasks and their fixed checklists: 309 information
-items and 247 operation items. The same task file ships in
-`benchmarks/hywebench/`; see the [benchmark guide](benchmarks/hywebench/README.md)
-for the dataset schema and download options.
+HyWeBench contains 100 tasks with 311 information and 247 operation
+checklist items. Download the benchmark and its judge from the default
+Hugging Face dataset. [HyWeBench](https://huggingface.co/datasets/yzxjb/HyWeBench)
+
+For live-site experiments, we recommend a U.S. residential proxy for Chromium.
+Set `TASK_PROXY_URL` to your proxy listener after sourcing `configs/hywe.env`
+and record the browser egress country with the run configuration. The example
+below uses a proxy listening on local port 8990.
+
+```bash
+hf download yzxjb/HyWeBench --repo-type dataset --local-dir data/hywebench
+source configs/hywe.env
+export TASK_PROXY_URL="http://127.0.0.1:8990"
+TASKS=data/hywebench/data/test.jsonl
+bash scripts/run_hywe.sh "$TASKS" runs/hywebench-live operation
+```
+
+Set `JUDGE_BASE_URL`, `JUDGE_API_KEY`, and `JUDGE_MODEL` for a vision-capable
+judge such as `kimi-k3`. The downloaded judge reads the reference date
+recorded in each trajectory.
+
+```bash
+HJ_OP_SEARCH_RULE=0 python data/hywebench/evaluation/judge_*.py \
+  evaluation/hywebench/hybrid_traj_judge.py \
+  --run runs/hywebench-live --tasks "$TASKS" \
+  --out runs/hywebench-live/judge/verdicts.jsonl \
+  --jpg-dir runs/hywebench-live/judge/jpg --workers 6
+python evaluation/hywebench/score.py runs/hywebench-live/judge/verdicts.jsonl --tasks "$TASKS"
+```
+
+### Archived HyWeBench results
 
 Recompute all published HyWeBench task/subgoal metrics without any model calls:
 
@@ -150,14 +175,8 @@ python evaluation/hywebench/score.py evaluation/hywebench/paper_verdicts/*.jsonl
 | Qwen3.6-35B-A3B base | 28.0 | 74.8 | 43.7 |
 | HyWe-35B | **47.0** | **82.2** | **68.8** |
 
-These are aggregations of the archived judge outputs, not new live-site runs.
-All 100 benchmark tasks, their fixed checklists, and 14 sets of verdicts are
-included. New trajectories require a vision-capable judge:
-
-```bash
-# Set JUDGE_BASE_URL / JUDGE_API_KEY / JUDGE_MODEL (paper: kimi-k3).
-bash evaluation/hywebench/judge.sh runs/hywebench
-```
+The scoring command above uses the bundled checklists and archived verdicts
+for the published table.
 
 For other benchmarks:
 
